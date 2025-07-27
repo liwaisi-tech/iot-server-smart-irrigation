@@ -27,7 +27,7 @@ type Connection struct {
 }
 
 // NewConnection creates a new database connection with the given configuration
-func NewConnection(config DatabaseConfig) (*Connection, error) {
+func NewPostgresConnection(config DatabaseConfig) (*Connection, error) {
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=UTC",
 		config.Host,
@@ -74,7 +74,7 @@ func (c *Connection) Close() error {
 	if err != nil {
 		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
 	}
-	
+
 	return sqlDB.Close()
 }
 

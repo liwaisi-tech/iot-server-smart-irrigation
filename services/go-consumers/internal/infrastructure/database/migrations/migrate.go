@@ -9,12 +9,12 @@ import (
 // RunMigrations executes the database migrations using GORM AutoMigrate
 func RunMigrations(dbConn *database.Connection) error {
 	log.Println("Executing database migrations...")
-	
+
 	if err := dbConn.AutoMigrate(); err != nil {
 		log.Printf("Migration failed: %v", err)
 		return err
 	}
-	
+
 	log.Println("Database migrations completed successfully")
 	return nil
 }
@@ -22,7 +22,7 @@ func RunMigrations(dbConn *database.Connection) error {
 // MigrateFromConfig creates a database connection and runs migrations
 func MigrateFromConfig(config database.DatabaseConfig) error {
 	// Create database connection
-	dbConn, err := database.NewConnection(config)
+	dbConn, err := database.NewPostgresConnection(config)
 	if err != nil {
 		return err
 	}

@@ -71,7 +71,7 @@ func main() {
 		zap.String("database", dbConfig.DBName),
 		zap.String("ssl_mode", dbConfig.SSLMode))
 
-	dbConn, err := database.NewConnection(dbConfig)
+	dbConn, err := database.NewPostgresConnection(dbConfig)
 	if err != nil {
 		appLogger.Fatal("Failed to connect to database", zap.Error(err))
 	}
@@ -112,7 +112,7 @@ func main() {
 		zap.String("primary_key", "mac_address"),
 		zap.Bool("pagination_support", true),
 		zap.String("pagination_type", "limit_offset"))
-	
+
 	// Setup graceful shutdown
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -122,6 +122,6 @@ func main() {
 	// Block until a signal is received
 	<-c
 	appLogger.Info("Shutdown signal received, beginning graceful shutdown...")
-	
+
 	appLogger.Info("Go Consumer Service shutdown completed")
 }
