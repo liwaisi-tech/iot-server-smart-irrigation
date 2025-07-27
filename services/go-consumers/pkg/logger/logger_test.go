@@ -3,38 +3,25 @@ package logger
 import (
 	"testing"
 
-	"go.uber.org/zap/zapcore"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
 	
-	if config.Level != "info" {
-		t.Errorf("Expected default level to be 'info', got '%s'", config.Level)
-	}
-	
-	if config.Environment != "production" {
-		t.Errorf("Expected default environment to be 'production', got '%s'", config.Environment)
-	}
-	
-	if config.Encoding != "json" {
-		t.Errorf("Expected default encoding to be 'json', got '%s'", config.Encoding)
-	}
-	
-	if len(config.OutputPaths) != 1 || config.OutputPaths[0] != "stdout" {
-		t.Errorf("Expected default output paths to be ['stdout'], got %v", config.OutputPaths)
-	}
+	assert.Equal(t, "info", config.Level)
+	assert.Equal(t, "production", config.Environment)
+	assert.Equal(t, "json", config.Encoding)
+	assert.Len(t, config.OutputPaths, 1)
+	assert.Equal(t, "stdout", config.OutputPaths[0])
 }
 
 func TestNewLoggerWithDefaults(t *testing.T) {
 	logger, err := NewLoggerWithDefaults()
-	if err != nil {
-		t.Fatalf("Failed to create logger with defaults: %v", err)
-	}
-	
-	if logger == nil {
-		t.Error("Expected logger to be non-nil")
-	}
+	require.NoError(t, err)
+	assert.NotNil(t, logger)
 	
 	// Test that logger can be used
 	logger.Info("Test log message")
@@ -50,13 +37,8 @@ func TestNewLoggerWithCustomConfig(t *testing.T) {
 	}
 	
 	logger, err := NewLogger(config)
-	if err != nil {
-		t.Fatalf("Failed to create logger with custom config: %v", err)
-	}
-	
-	if logger == nil {
-		t.Error("Expected logger to be non-nil")
-	}
+	require.NoError(t, err)
+	assert.NotNil(t, logger)
 	
 	// Test that logger can be used
 	logger.Debug("Debug message")
@@ -74,13 +56,8 @@ func TestNewLoggerWithInvalidLevel(t *testing.T) {
 	}
 	
 	logger, err := NewLogger(config)
-	if err != nil {
-		t.Fatalf("Logger creation should not fail with invalid level: %v", err)
-	}
-	
-	if logger == nil {
-		t.Error("Expected logger to be non-nil even with invalid level")
-	}
+	require.NoError(t, err, "Logger creation should not fail with invalid level")
+	assert.NotNil(t, logger, "Expected logger to be non-nil even with invalid level")
 	
 	// Should default to info level
 	logger.Info("This should work with default level")
@@ -91,23 +68,20 @@ func TestLoggerLevels(t *testing.T) {
 	levels := []string{"debug", "info", "warn", "error"}
 	
 	for _, level := range levels {
-		config := LoggerConfig{
-			Level:       level,
-			Environment: "production",
-			OutputPaths: []string{"stdout"},
-			Encoding:    "json",
-		}
-		
-		logger, err := NewLogger(config)
-		if err != nil {
-			t.Fatalf("Failed to create logger with level '%s': %v", level, err)
-		}
-		
-		if logger == nil {
-			t.Errorf("Expected logger to be non-nil for level '%s'", level)
-		}
-		
-		logger.Info("Test message", zapcore.Field{Key: "level", String: level})
-		logger.Sync()
+		t.Run(level, func(t *testing.T) {
+			config := LoggerConfig{
+				Level:       level,
+				Environment: "production",
+				OutputPaths: []string{"stdout"},
+				Encoding:    "json",
+			}
+			
+			logger, err := NewLogger(config)
+			require.NoError(t, err, "Failed to create logger with level '%s'", level)
+			assert.NotNil(t, logger, "Expected logger to be non-nil for level '%s'", level)
+			
+			logger.Info("Test message", zap.String("level", level))
+			logger.Sync()
+		})
 	}
 }
