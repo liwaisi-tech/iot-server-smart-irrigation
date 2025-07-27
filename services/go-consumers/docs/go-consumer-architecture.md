@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `go-consumer` service is the central message processing component of the IoT Smart Irrigation system. It consumes messages from NATS with MQTT support and processes them through dedicated topic-specific handlers, storing processed data in PostgreSQL using GORM.
+The `go-consumer` service is the central message processing component of the IoT Smart Irrigation system. It directly consumes MQTT messages from ESP32 devices and processes them through dedicated topic-specific handlers, storing processed data in PostgreSQL using GORM.
 
 ## System Architecture
 
@@ -12,19 +12,22 @@ The `go-consumer` service is the central message processing component of the IoT
 │                 │    │                  │    │                 │
 └─────────┬───────┘    └────────┬─────────┘    └─────────┬───────┘
           │                     │                        │
+          │ MQTT Messages       │ HTTP/WebSocket         │ HTTP/gRPC
           │                     │                        │
           └─────────────────────┼────────────────────────┘
                                 │
                                 ▼
                     ┌─────────────────────┐
-                    │     NATS/MQTT       │
-                    │     Message Broker  │
+                    │    MQTT Broker      │
+                    │   (Eclipse Mosquitto│
+                    │    or HiveMQ)       │
                     └─────────┬───────────┘
-                              │
+                              │ MQTT Subscribe
                               ▼
                     ┌─────────────────────┐
                     │    Go-Consumer      │
                     │    Service          │
+                    │  (MQTT Subscriber)  │
                     └─────────┬───────────┘
                               │
                               ▼
@@ -60,7 +63,7 @@ The `go-consumer` service is the central message processing component of the IoT
 │  Processing     │  Context        │  Context        │  Context      │
 │  Context        │                 │                 │               │
 │                 │                 │                 │               │
-│ • Router        │ • SensorData    │ • CommandResp   │ • NATS Client │
+│ • Router        │ • SensorData    │ • CommandResp   │ • MQTT Client │
 │ • Handler Mgmt  │ • DeviceHealth  │ • DeviceStatus  │ • DB Client   │
 │ • Error Handling│ • Aggregates    │ • Aggregates    │ • Config      │
 │                 │                 │                 │ • Monitoring  │
@@ -98,11 +101,13 @@ type SensorDataHandler struct {
     metrics       *HandlerMetrics
 }
 
-// Enhanced topic pattern: iot/irrigation/{region}/{zone}/{device_id}/sensor/{type}
+// Actual MQTT topic pattern based on ESP32 implementation:
+// /liwaisi/iot/smart-irrigation/{message_type}/{sub_type}
 // Examples: 
-// - iot/irrigation/west/greenhouse1/esp32-001/sensor/temperature
-// - iot/irrigation/west/greenhouse1/esp32-001/sensor/humidity  
-// - iot/irrigation/west/greenhouse1/esp32-001/sensor/soil_moisture
+// - /liwaisi/iot/smart-irrigation/device/registration
+// - /liwaisi/iot/smart-irrigation/sensor/temperature
+// - /liwaisi/iot/smart-irrigation/sensor/humidity
+// - /liwaisi/iot/smart-irrigation/device/status
 
 type SensorValue struct {
     Value float64 `json:"value"`
@@ -126,10 +131,12 @@ type CommandResponseHandler struct {
     metrics       *HandlerMetrics
 }
 
-// Enhanced topic pattern: iot/irrigation/{region}/{zone}/{device_id}/response/{command_type}
+// MQTT topic pattern for command responses:
+// /liwaisi/iot/smart-irrigation/command/{command_type}
 // Examples:
-// - iot/irrigation/west/greenhouse1/esp32-001/response/irrigation
-// - iot/irrigation/west/greenhouse1/esp32-001/response/calibration
+// - /liwaisi/iot/smart-irrigation/command/irrigation
+// - /liwaisi/iot/smart-irrigation/command/calibration
+// - /liwaisi/iot/smart-irrigation/command/restart
 
 type CommandAggregate struct {
     commandResponse *domain.CommandResponse
@@ -147,11 +154,13 @@ type HealthStatusHandler struct {
     metrics        *HandlerMetrics
 }
 
-// Enhanced topic pattern: iot/irrigation/{region}/{zone}/{device_id}/health/{metric}
+// MQTT topic pattern for device health:
+// /liwaisi/iot/smart-irrigation/health/{metric}
 // Examples:
-// - iot/irrigation/west/greenhouse1/esp32-001/health/status
-// - iot/irrigation/west/greenhouse1/esp32-001/health/battery
-// - iot/irrigation/west/greenhouse1/esp32-001/health/connectivity
+// - /liwaisi/iot/smart-irrigation/health/status
+// - /liwaisi/iot/smart-irrigation/health/battery
+// - /liwaisi/iot/smart-irrigation/health/connectivity
+// - /liwaisi/iot/smart-irrigation/health/diagnostics
 ```
 
 ### 3. Enhanced Message Handler Interface with Error Types
@@ -514,19 +523,27 @@ services/go-consumer/
 
 ## Message Flow
 
-### 1. Message Reception Flow
+### 1. MQTT Message Reception Flow
 ```
-NATS Message → Message Router → Topic Pattern Matching → Handler Selection → Handler Processing
+ESP32 Device → MQTT Publish → MQTT Broker → Go-Consumer Subscribe → Message Router → 
+Topic Pattern Matching → Handler Selection → Handler Processing
 ```
 
 ### 2. Handler Processing Flow
 ```
-Message Validation → Business Logic Processing → Database Persistence → Success/Error Response
+MQTT Message → JSON Parsing → Message Validation → Business Logic Processing → 
+Database Persistence → Success/Error Response → MQTT Ack
 ```
 
-### 3. Retry Mechanism Flow
+### 3. Device Registration Flow
 ```
-Handler Error → Retry Counter Check → Retry (up to 3 times) → Success OR Discard Message
+ESP32 Boot → Device Registration Message → /liwaisi/iot/smart-irrigation/device/registration → 
+Device Handler → Database Upsert → Registration Confirmation
+```
+
+### 4. Retry Mechanism Flow
+```
+Handler Error → Retry Counter Check → Retry (up to 3 times) → Success OR Dead Letter Queue
 ```
 
 ## Concurrency Model
@@ -548,82 +565,48 @@ type HandlerPool struct {
 
 ## Configuration
 
-### Enhanced NATS Configuration with Security
+### MQTT Configuration
 ```yaml
-nats:
-  servers: ["nats://localhost:4222"]
+mqtt:
+  broker_url: "tcp://localhost:1883"  # MQTT broker URL
   client_id: "go-consumer-service"
-  # Enhanced subject patterns with hierarchical topics
-  subjects:
-    - "iot.irrigation.>.sensor.>"
-    - "iot.irrigation.>.response.>"
-    - "iot.irrigation.>.health.>"
+  # Topic subscriptions for ESP32 device messages
+  topics:
+    - "/liwaisi/iot/smart-irrigation/device/registration"
+    - "/liwaisi/iot/smart-irrigation/sensor/+"     # Wildcard for all sensor types
+    - "/liwaisi/iot/smart-irrigation/command/+"    # Wildcard for all commands
+    - "/liwaisi/iot/smart-irrigation/health/+"     # Wildcard for all health metrics
   
-  # Security configuration
-  tls:
-    enabled: true
+  # Quality of Service levels
+  qos: 1  # At least once delivery
+  
+  # Security configuration (if using TLS)
+  security:
+    tls_enabled: false
     cert_file: "/certs/client.crt"
     key_file: "/certs/client.key"
     ca_file: "/certs/ca.crt"
-    verify: true
   
-  # Authentication
+  # Authentication (if broker requires auth)
   auth:
-    token: "${NATS_TOKEN}"
-    # OR use JWT
-    jwt_file: "/certs/client.jwt"
-    seed_file: "/certs/client.nk"
+    username: "${MQTT_USERNAME}"
+    password: "${MQTT_PASSWORD}"
   
   # Connection options
   connection:
-    reconnect_wait: 5s
-    max_reconnects: 10
-    ping_interval: 30s
-    max_ping_out: 3
+    keep_alive: 60s
+    clean_session: true
+    connect_timeout: 30s
+    reconnect_delay: 5s
+    max_reconnect_attempts: 10
   
-  # JetStream configuration for persistence
-  jetstream:
-    enabled: true
-    streams:
-      - name: "SENSOR_DATA"
-        subjects: ["iot.irrigation.*.*.*.sensor.>"]
-        storage: "file"
-        max_age: "24h"
-        max_msgs: 1000000
-        retention: "limits"
-      - name: "COMMANDS"
-        subjects: ["iot.irrigation.*.*.*.response.>"]
-        storage: "file"
-        max_age: "7d"
-        max_msgs: 100000
-        retention: "workqueue"
-      - name: "HEALTH"
-        subjects: ["iot.irrigation.*.*.*.health.>"]
-        storage: "file"
-        max_age: "1h"
-        max_msgs: 10000
-        retention: "limits"
-  
-  # Consumer groups for horizontal scaling
-  consumer_groups:
-    sensor_data:
-      durable_name: "sensor-processors"
-      deliver_policy: "new"
-      ack_policy: "explicit"
-      max_deliver: 3
-      ack_wait: 30s
-    commands:
-      durable_name: "command-processors"
-      deliver_policy: "new"
-      ack_policy: "explicit"
-      max_deliver: 3
-      ack_wait: 60s
-    health:
-      durable_name: "health-processors"
-      deliver_policy: "new"
-      ack_policy: "explicit"
-      max_deliver: 2
-      ack_wait: 15s
+  # Message handling
+  message_handling:
+    buffer_size: 1000
+    worker_pool_size: 5
+    max_message_size: 10240  # 10KB max message size
+    enable_persistence: true
+    persistent_session: false
 ```
 
 ### Database Configuration
@@ -631,9 +614,9 @@ nats:
 database:
   host: "localhost"
   port: 5432
-  user: "iot_user"
-  password: "iot_password"
-  dbname: "iot_irrigation"
+  user: "liwaisi-sis-admin"
+  password: "${POSTGRES_PASSWORD:-postgres}"
+  dbname: "smart-irrigation-system-db"
   sslmode: "disable"
   max_connections: 25
   max_idle_connections: 5
@@ -642,6 +625,9 @@ database:
 ### Handler Configuration
 ```yaml
 handlers:
+  device_registration:
+    workers: 2
+    buffer_size: 50
   sensor_data:
     workers: 5
     buffer_size: 100
@@ -683,7 +669,7 @@ type ApplicationMetrics struct {
     ActiveWorkers       *prometheus.GaugeVec
     
     // Infrastructure metrics
-    NATSConnections     prometheus.Gauge
+    MQTTConnections     prometheus.Gauge
     DatabaseConnections prometheus.Gauge
     CircuitBreakerState *prometheus.GaugeVec
     
@@ -697,7 +683,7 @@ type ApplicationMetrics struct {
 ### Health Checks
 ```go
 type HealthChecker struct {
-    natsClient   *nats.Conn
+    mqttClient   mqtt.Client
     database     *gorm.DB
     handlers     map[string]MessageHandler
     lastActivity map[string]time.Time
@@ -874,9 +860,9 @@ func TestSensorDataHandler_Handle(t *testing.T) {
     handler := NewSensorDataHandler(mockRepo, mockValidator)
     
     testMessage := &Message{
-        Subject:  "iot.irrigation.west.greenhouse1.esp32-001.sensor.temperature",
-        DeviceID: "esp32-001",
-        Data:     []byte(`{"value": 25.5, "unit": "celsius"}`),
+        Topic:    "/liwaisi/iot/smart-irrigation/sensor/temperature",
+        DeviceID: "A0:A3:B3:AB:2F:D8",
+        Data:     []byte(`{"value": 25.5, "unit": "celsius", "mac_address": "A0:A3:B3:AB:2F:D8"}`),
     }
     
     // Act

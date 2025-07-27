@@ -120,4 +120,5 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/windows,macos,linux,visualstudiocode,go
 GEMINI.md
 .claude/
-
+CLAUDE.md
+bin/

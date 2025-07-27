@@ -5,7 +5,7 @@ services:
     ports:
       - "4222:4222"    # NATS client port
       - "8222:8222"    # HTTP monitoring port
-      - "1884:1884"    # MQTT port
+      - "1883:1883"    # MQTT port
       - "6222:6222"    # Cluster port
     volumes:
       - ./infrastructure/nats/nats-working.conf:/etc/nats/nats.conf:ro
@@ -24,10 +24,10 @@ services:
     image: pgvector/pgvector:pg15
     container_name: iot-postgres-vector
     environment:
-      POSTGRES_DB: smart_irrigation
-      POSTGRES_USER: irrigation_admin
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-irrigation_secure_2024}
-      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=peer"
+      POSTGRES_DB: smart-irrigation-system-db
+      POSTGRES_USER: liwaisi-sis-admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
@@ -46,7 +46,7 @@ services:
       - iot-server-smart-irrigation-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U irrigation_admin -d smart_irrigation"]
+      test: ["CMD-SHELL", "pg_isready -U liwaisi-sis-admin -d smart-irrigation-system-db"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -67,14 +67,14 @@ services:
     environment:
       POSTGRESQL_HOST: postgres
       POSTGRESQL_PORT: 5432
-      POSTGRESQL_USERNAME: irrigation_admin
-      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-irrigation_secure_2024}
-      POSTGRESQL_DATABASE: smart_irrigation
+      POSTGRESQL_USERNAME: liwaisi-sis-admin
+      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRESQL_DATABASE: smart-irrigation-system-db
       PGBOUNCER_POOL_MODE: transaction
       PGBOUNCER_DEFAULT_POOL_SIZE: 25
       PGBOUNCER_MAX_CLIENT_CONN: 1000
-      PGBOUNCER_ADMIN_USERS: irrigation_admin
-      PGBOUNCER_STATS_USERS: irrigation_admin
+      PGBOUNCER_ADMIN_USERS: liwaisi-sis-admin
+      PGBOUNCER_STATS_USERS: liwaisi-sis-admin
     ports:
       - "6432:5432"
     depends_on:
@@ -84,7 +84,7 @@ services:
       - iot-server-smart-irrigation-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "psql -h localhost -p 5432 -U irrigation_admin -d pgbouncer -c 'SHOW pools;' || exit 1"]
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U liwaisi-sis-admin || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
