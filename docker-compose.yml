@@ -1,0 +1,105 @@
+services:
+  nats:
+    image: nats:2.10-alpine
+    container_name: iot-nats-server
+    ports:
+      - "4222:4222"    # NATS client port
+      - "8222:8222"    # HTTP monitoring port
+      - "1884:1884"    # MQTT port
+      - "6222:6222"    # Cluster port
+    volumes:
+      - ./infrastructure/nats/nats-working.conf:/etc/nats/nats.conf:ro
+    command: ["--config", "/etc/nats/nats.conf"]
+    networks:
+      - iot-server-smart-irrigation-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/varz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: iot-postgres-vector
+    environment:
+      POSTGRES_DB: smart_irrigation
+      POSTGRES_USER: irrigation_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-irrigation_secure_2024}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=peer"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    command: >
+      postgres 
+      -c shared_buffers=512MB
+      -c work_mem=32MB
+      -c maintenance_work_mem=256MB
+      -c effective_cache_size=1536MB
+      -c max_connections=200
+      -c log_min_duration_statement=1000
+      -c log_statement=none
+    networks:
+      - iot-server-smart-irrigation-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U irrigation_admin -d smart_irrigation"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    shm_size: 2gb
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2'
+        reservations:
+          memory: 2G
+          cpus: '1'
+
+  pgbouncer:
+    image: bitnami/pgbouncer:1.24.1
+    container_name: iot-pgbouncer
+    environment:
+      DATABASES_HOST: postgres
+      DATABASES_PORT: 5432
+      DATABASES_USER: irrigation_admin
+      DATABASES_PASSWORD: ${POSTGRES_PASSWORD:-irrigation_secure_2024}
+      DATABASES_DBNAME: smart_irrigation
+      POOL_MODE: transaction
+      DEFAULT_POOL_SIZE: 25
+      MAX_CLIENT_CONN: 1000
+      SERVER_RESET_QUERY: DISCARD ALL
+      ADMIN_USERS: irrigation_admin
+      STATS_USERS: irrigation_admin
+    ports:
+      - "6432:5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - iot-server-smart-irrigation-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "psql -h localhost -p 5432 -U irrigation_admin -d pgbouncer -c 'SHOW pools;' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+networks:
+  iot-server-smart-irrigation-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  nats_data:
+    driver: local
+  postgres_data:
+    driver: local
