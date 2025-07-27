@@ -65,17 +65,16 @@ services:
     image: bitnami/pgbouncer:1.24.1
     container_name: iot-pgbouncer
     environment:
-      DATABASES_HOST: postgres
-      DATABASES_PORT: 5432
-      DATABASES_USER: irrigation_admin
-      DATABASES_PASSWORD: ${POSTGRES_PASSWORD:-irrigation_secure_2024}
-      DATABASES_DBNAME: smart_irrigation
-      POOL_MODE: transaction
-      DEFAULT_POOL_SIZE: 25
-      MAX_CLIENT_CONN: 1000
-      SERVER_RESET_QUERY: DISCARD ALL
-      ADMIN_USERS: irrigation_admin
-      STATS_USERS: irrigation_admin
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: 5432
+      POSTGRESQL_USERNAME: irrigation_admin
+      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-irrigation_secure_2024}
+      POSTGRESQL_DATABASE: smart_irrigation
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_DEFAULT_POOL_SIZE: 25
+      PGBOUNCER_MAX_CLIENT_CONN: 1000
+      PGBOUNCER_ADMIN_USERS: irrigation_admin
+      PGBOUNCER_STATS_USERS: irrigation_admin
     ports:
       - "6432:5432"
     depends_on:
