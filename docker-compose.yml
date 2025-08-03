@@ -6,10 +6,9 @@ services:
       - "4222:4222"    # NATS client port
       - "8222:8222"    # HTTP monitoring port
       - "1883:1883"    # MQTT port
-      - "6222:6222"    # Cluster port
     volumes:
-      - ./infrastructure/nats/nats-working.conf:/etc/nats/nats.conf:ro
-    command: ["--config", "/etc/nats/nats.conf"]
+      - ./infrastructure/nats/nats-working.conf:/nats-server.conf:ro
+    command: ["--config", "/nats-server.conf"]
     networks:
       - iot-server-smart-irrigation-network
     restart: unless-stopped
