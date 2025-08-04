@@ -1,0 +1,19 @@
+all: false
+dir: mocks
+filename: '{{.InterfaceName}}.go'
+force-file-write: true
+formatter: goimports
+include-auto-generated: false
+log-level: info
+structname: 'Mock{{.InterfaceName}}'
+pkgname: mocks
+recursive: false
+require-template-schema-exists: false
+template: testify
+packages:
+  github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports:
+    config:
+      all: true
+  github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/ping:
+    config:
+      all: true
