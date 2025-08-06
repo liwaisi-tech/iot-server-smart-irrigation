@@ -4,7 +4,7 @@ This is a Go-based message consumer for the IoT Smart Irrigation system. It hand
 
 ## Features
 
-- **Dual Repository Support**: Choose between in-memory or PostgreSQL storage
+- **In-Memory Storage**: Fast in-memory repository for development and testing
 - **MQTT Message Consumption**: Handles device registration messages
 - **REST API**: Ping endpoint for health checks
 - **Hexagonal Architecture**: Clean separation of concerns with domain-driven design
@@ -14,30 +14,15 @@ This is a Go-based message consumer for the IoT Smart Irrigation system. It hand
 
 ## Quick Start
 
-### Using In-Memory Repository (Default)
+### Running the Application
 
 ```bash
 # Clone and build
 go build -o bin/iot-consumer ./cmd/server
 
-# Run with default in-memory storage
+# Run with in-memory storage (default)
 ./bin/iot-consumer
 ```
-
-### Using PostgreSQL Repository
-
-1. **Start PostgreSQL from project root:**
-   ```bash
-   # From the project root directory
-   cd ../../
-   docker-compose up -d postgres pgbouncer nats
-   ```
-
-2. **Run with PostgreSQL:**
-   ```bash
-   # From go-soc-consumer directory
-   DB_TYPE=postgres go run ./cmd/server
-   ```
 
 ## Configuration
 
@@ -51,8 +36,7 @@ cp .env.example .env
 
 ### Key Environment Variables
 
-- `DB_TYPE`: Repository type (`memory` or `postgres`)
-- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`: PostgreSQL connection details
+- `MQTT_BROKER_URL`: MQTT broker connection string
 - `MQTT_BROKER_URL`: MQTT broker connection string
 - `HTTP_PORT`: HTTP server port (default: 8080)
 - `POSTGRES_PASSWORD`: Password for the PostgreSQL service (configured in root docker-compose.yml)
@@ -75,11 +59,8 @@ cp .env.example .env
 # Build
 make build
 
-# Run with memory repository
+# Run the application
 make run
-
-# Run with PostgreSQL
-make run-postgres
 
 # Run tests
 make test
@@ -170,18 +151,13 @@ Device registration messages should be published to topic `/liwaisi/iot/smart-ir
 }
 ```
 
-## Repository Implementations
+## Repository Implementation
 
 ### Memory Repository
 - In-memory storage using Go maps
 - Thread-safe with mutex protection
-- Suitable for development and testing
-
-### PostgreSQL Repository
-- Persistent storage with PostgreSQL
-- ACID compliance and transactions
-- Connection pooling and proper error handling
-- Prepared statements for security
+- Fast access for development and testing
+- Data persists only during application runtime
 
 ## Infrastructure Services
 

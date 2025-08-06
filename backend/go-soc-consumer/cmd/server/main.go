@@ -8,18 +8,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/database"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/messaging"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/persistence"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/presentation/http/handlers"
 	deviceregistration "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/device_registration"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/ping"
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/config"
 )
 
 func main() {
@@ -151,62 +148,10 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-// initializeRepository initializes the device repository based on environment configuration
+// initializeRepository initializes the device repository with memory database as default
 func initializeRepository(logger *slog.Logger) (ports.DeviceRepository, func(), error) {
-	// Check if PostgreSQL should be used
-	dbType := strings.ToLower(getEnv("DB_TYPE", "memory"))
-	
-	switch dbType {
-	case "postgres", "postgresql":
-		logger.Info("Initializing PostgreSQL repository")
-		
-		// Create database configuration
-		dbConfig := config.NewDatabaseConfig()
-		if err := dbConfig.Validate(); err != nil {
-			return nil, nil, fmt.Errorf("invalid database configuration: %w", err)
-		}
-		
-		logger.Info("Connecting to PostgreSQL database", 
-			slog.String("host", dbConfig.Host),
-			slog.Int("port", dbConfig.Port),
-			slog.String("database", dbConfig.Name))
-		
-		// Create database connection
-		db, err := database.NewPostgresDB(dbConfig)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create PostgreSQL connection: %w", err)
-		}
-		
-		// Run database migrations
-		migrationsPath := getEnv("MIGRATIONS_PATH", "./migrations")
-		logger.Info("Running database migrations", slog.String("path", migrationsPath))
-		
-		if err := db.RunMigrations(migrationsPath); err != nil {
-			db.Close()
-			return nil, nil, fmt.Errorf("failed to run database migrations: %w", err)
-		}
-		
-		// Create PostgreSQL repository
-		repo := persistence.NewPostgresDeviceRepository(db)
-		
-		// Return repository and cleanup function
-		cleanup := func() {
-			logger.Info("Closing database connection")
-			if err := db.Close(); err != nil {
-				logger.Error("Error closing database connection", slog.String("error", err.Error()))
-			}
-		}
-		
-		logger.Info("PostgreSQL repository initialized successfully")
-		return repo, cleanup, nil
-		
-	case "memory":
-		logger.Info("Initializing in-memory repository")
-		repo := persistence.NewMemoryDeviceRepository()
-		logger.Info("In-memory repository initialized successfully")
-		return repo, nil, nil
-		
-	default:
-		return nil, nil, fmt.Errorf("unsupported database type: %s. Supported types: memory, postgres", dbType)
-	}
+	logger.Info("Initializing in-memory repository")
+	repo := persistence.NewMemoryDeviceRepository()
+	logger.Info("In-memory repository initialized successfully")
+	return repo, nil, nil
 }

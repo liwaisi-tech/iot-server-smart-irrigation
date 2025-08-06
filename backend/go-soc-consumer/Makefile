@@ -16,13 +16,9 @@ help:
 build:
 	go build -o bin/iot-consumer ./cmd/server
 
-# Run the application locally (with memory repository by default)
+# Run the application locally
 run:
-	DB_TYPE=memory go run ./cmd/server
-
-# Run the application with PostgreSQL
-run-postgres:
-	DB_TYPE=postgres go run ./cmd/server
+	go run ./cmd/server
 
 # Run unit tests
 test:

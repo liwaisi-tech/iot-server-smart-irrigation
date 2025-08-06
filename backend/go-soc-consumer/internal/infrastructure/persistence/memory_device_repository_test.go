@@ -464,7 +464,7 @@ func TestMemoryDeviceRepository_ConcurrentAccess_UpdateAndRead(t *testing.T) {
 				return
 			}
 
-			foundDevice.DeviceName = fmt.Sprintf("Updated Device %d", goroutineID)
+			foundDevice.SetDeviceName(fmt.Sprintf("Updated Device %d", goroutineID))
 			foundDevice.MarkOnline()
 
 			if err := repo.Update(ctx, foundDevice); err != nil {
