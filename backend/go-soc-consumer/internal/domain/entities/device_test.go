@@ -4,6 +4,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewDevice(t *testing.T) {
@@ -214,52 +217,26 @@ func TestNewDevice(t *testing.T) {
 			afterTime := time.Now()
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("NewDevice() expected error but got none")
-				}
-				if device != nil {
-					t.Errorf("NewDevice() expected nil device but got %v", device)
-				}
+				assert.Error(t, err, "NewDevice() expected error but got none")
+				assert.Nil(t, device, "NewDevice() expected nil device")
 			} else {
-				if err != nil {
-					t.Errorf("NewDevice() unexpected error: %v", err)
-				}
-				if device == nil {
-					t.Errorf("NewDevice() expected device but got nil")
-					return
-				}
+				require.NoError(t, err, "NewDevice() unexpected error")
+				require.NotNil(t, device, "NewDevice() expected device but got nil")
 
 				// Verify MAC address normalization
-				if device.MACAddress != tt.expectedMAC {
-					t.Errorf("NewDevice() MAC address expected %s, got %s", tt.expectedMAC, device.MACAddress)
-				}
+				assert.Equal(t, tt.expectedMAC, device.MACAddress, "NewDevice() MAC address mismatch")
 
 				// Verify other fields are trimmed and set correctly
-				if device.DeviceName != strings.TrimSpace(tt.deviceName) {
-					t.Errorf("NewDevice() device name expected %s, got %s", strings.TrimSpace(tt.deviceName), device.DeviceName)
-				}
-
-				if device.IPAddress != strings.TrimSpace(tt.ipAddress) {
-					t.Errorf("NewDevice() IP address expected %s, got %s", strings.TrimSpace(tt.ipAddress), device.IPAddress)
-				}
-
-				if device.LocationDescription != strings.TrimSpace(tt.locationDescription) {
-					t.Errorf("NewDevice() location description expected %s, got %s", strings.TrimSpace(tt.locationDescription), device.LocationDescription)
-				}
+				assert.Equal(t, strings.TrimSpace(tt.deviceName), device.DeviceName, "NewDevice() device name mismatch")
+				assert.Equal(t, strings.TrimSpace(tt.ipAddress), device.IPAddress, "NewDevice() IP address mismatch")
+				assert.Equal(t, strings.TrimSpace(tt.locationDescription), device.LocationDescription, "NewDevice() location description mismatch")
 
 				// Verify timestamps are set correctly
-				if device.RegisteredAt.Before(beforeTime) || device.RegisteredAt.After(afterTime) {
-					t.Errorf("NewDevice() RegisteredAt timestamp not within expected range")
-				}
-
-				if device.LastSeen.Before(beforeTime) || device.LastSeen.After(afterTime) {
-					t.Errorf("NewDevice() LastSeen timestamp not within expected range")
-				}
+				assert.False(t, device.RegisteredAt.Before(beforeTime) || device.RegisteredAt.After(afterTime), "NewDevice() RegisteredAt timestamp not within expected range")
+				assert.False(t, device.LastSeen.Before(beforeTime) || device.LastSeen.After(afterTime), "NewDevice() LastSeen timestamp not within expected range")
 
 				// Verify initial status
-				if device.Status != "registered" {
-					t.Errorf("NewDevice() expected initial status 'registered', got '%s'", device.Status)
-				}
+				assert.Equal(t, "registered", device.Status, "NewDevice() expected initial status 'registered'")
 			}
 		})
 	}
@@ -292,13 +269,9 @@ func TestDevice_validateMacAddress(t *testing.T) {
 			err := device.validateMacAddress()
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("validateMacAddress() expected error but got none")
-				}
+				assert.Error(t, err, "validateMacAddress() expected error but got none")
 			} else {
-				if err != nil {
-					t.Errorf("validateMacAddress() unexpected error: %v", err)
-				}
+				assert.NoError(t, err, "validateMacAddress() unexpected error")
 			}
 		})
 	}
@@ -324,13 +297,9 @@ func TestDevice_validateDeviceName(t *testing.T) {
 			err := device.validateDeviceName()
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("validateDeviceName() expected error but got none")
-				}
+				assert.Error(t, err, "validateDeviceName() expected error but got none")
 			} else {
-				if err != nil {
-					t.Errorf("validateDeviceName() unexpected error: %v", err)
-				}
+				assert.NoError(t, err, "validateDeviceName() unexpected error")
 			}
 		})
 	}
@@ -362,13 +331,9 @@ func TestDevice_validateIPAddress(t *testing.T) {
 			err := device.validateIPAddress()
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("validateIPAddress() expected error but got none")
-				}
+				assert.Error(t, err, "validateIPAddress() expected error but got none")
 			} else {
-				if err != nil {
-					t.Errorf("validateIPAddress() unexpected error: %v", err)
-				}
+				assert.NoError(t, err, "validateIPAddress() unexpected error")
 			}
 		})
 	}
@@ -394,13 +359,9 @@ func TestDevice_validateLocationDescription(t *testing.T) {
 			err := device.validateLocationDescription()
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("validateLocationDescription() expected error but got none")
-				}
+				assert.Error(t, err, "validateLocationDescription() expected error but got none")
 			} else {
-				if err != nil {
-					t.Errorf("validateLocationDescription() unexpected error: %v", err)
-				}
+				assert.NoError(t, err, "validateLocationDescription() unexpected error")
 			}
 		})
 	}
@@ -427,13 +388,9 @@ func TestDevice_validateStatus(t *testing.T) {
 			err := device.validateStatus()
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("validateStatus() expected error but got none")
-				}
+				assert.Error(t, err, "validateStatus() expected error but got none")
 			} else {
-				if err != nil {
-					t.Errorf("validateStatus() unexpected error: %v", err)
-				}
+				assert.NoError(t, err, "validateStatus() unexpected error")
 			}
 		})
 	}
@@ -472,24 +429,14 @@ func TestDevice_UpdateStatus(t *testing.T) {
 			afterTime := time.Now()
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("UpdateStatus() expected error but got none")
-				}
+				assert.Error(t, err, "UpdateStatus() expected error but got none")
 				// Status and LastSeen should not be updated on error
-				if device.LastSeen.After(originalLastSeen) {
-					t.Errorf("UpdateStatus() LastSeen should not be updated on error")
-				}
+				assert.False(t, device.LastSeen.After(originalLastSeen), "UpdateStatus() LastSeen should not be updated on error")
 			} else {
-				if err != nil {
-					t.Errorf("UpdateStatus() unexpected error: %v", err)
-				}
-				if device.Status != tt.status {
-					t.Errorf("UpdateStatus() expected status %s, got %s", tt.status, device.Status)
-				}
+				assert.NoError(t, err, "UpdateStatus() unexpected error")
+				assert.Equal(t, tt.status, device.Status, "UpdateStatus() status mismatch")
 				// LastSeen should be updated
-				if device.LastSeen.Before(beforeTime) || device.LastSeen.After(afterTime) {
-					t.Errorf("UpdateStatus() LastSeen not updated correctly")
-				}
+				assert.False(t, device.LastSeen.Before(beforeTime) || device.LastSeen.After(afterTime), "UpdateStatus() LastSeen not updated correctly")
 			}
 		})
 	}
@@ -510,13 +457,8 @@ func TestDevice_MarkOnline(t *testing.T) {
 	device.MarkOnline()
 	afterTime := time.Now()
 
-	if device.Status != "online" {
-		t.Errorf("MarkOnline() expected status 'online', got '%s'", device.Status)
-	}
-
-	if device.LastSeen.Before(beforeTime) || device.LastSeen.After(afterTime) {
-		t.Errorf("MarkOnline() LastSeen not updated correctly")
-	}
+	assert.Equal(t, "online", device.Status, "MarkOnline() expected status 'online'")
+	assert.False(t, device.LastSeen.Before(beforeTime) || device.LastSeen.After(afterTime), "MarkOnline() LastSeen not updated correctly")
 }
 
 func TestDevice_MarkOffline(t *testing.T) {
@@ -534,13 +476,8 @@ func TestDevice_MarkOffline(t *testing.T) {
 	device.MarkOffline()
 	afterTime := time.Now()
 
-	if device.Status != "offline" {
-		t.Errorf("MarkOffline() expected status 'offline', got '%s'", device.Status)
-	}
-
-	if device.LastSeen.Before(beforeTime) || device.LastSeen.After(afterTime) {
-		t.Errorf("MarkOffline() LastSeen not updated correctly")
-	}
+	assert.Equal(t, "offline", device.Status, "MarkOffline() expected status 'offline'")
+	assert.False(t, device.LastSeen.Before(beforeTime) || device.LastSeen.After(afterTime), "MarkOffline() LastSeen not updated correctly")
 }
 
 func TestDevice_IsOnline(t *testing.T) {
@@ -559,9 +496,7 @@ func TestDevice_IsOnline(t *testing.T) {
 			device := &Device{Status: tt.status}
 			result := device.IsOnline()
 
-			if result != tt.expected {
-				t.Errorf("IsOnline() expected %t, got %t", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "IsOnline() result mismatch")
 		})
 	}
 }
@@ -582,9 +517,7 @@ func TestDevice_IsOffline(t *testing.T) {
 			device := &Device{Status: tt.status}
 			result := device.IsOffline()
 
-			if result != tt.expected {
-				t.Errorf("IsOffline() expected %t, got %t", tt.expected, result)
-			}
+			assert.Equal(t, tt.expected, result, "IsOffline() result mismatch")
 		})
 	}
 }
@@ -593,9 +526,7 @@ func TestDevice_GetID(t *testing.T) {
 	device := &Device{MACAddress: "AA:BB:CC:DD:EE:FF"}
 	id := device.GetID()
 
-	if id != device.MACAddress {
-		t.Errorf("GetID() expected %s, got %s", device.MACAddress, id)
-	}
+	assert.Equal(t, device.MACAddress, id, "GetID() result mismatch")
 }
 
 func TestDevice_Validate(t *testing.T) {
@@ -677,13 +608,9 @@ func TestDevice_Validate(t *testing.T) {
 			err := tt.device.Validate()
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("Validate() expected error but got none")
-				}
+				assert.Error(t, err, "Validate() expected error but got none")
 			} else {
-				if err != nil {
-					t.Errorf("Validate() unexpected error: %v", err)
-				}
+				assert.NoError(t, err, "Validate() unexpected error")
 			}
 		})
 	}

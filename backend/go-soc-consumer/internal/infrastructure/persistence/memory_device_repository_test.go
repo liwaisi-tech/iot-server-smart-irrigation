@@ -6,23 +6,18 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/entities"
 )
 
 func TestNewMemoryDeviceRepository(t *testing.T) {
 	repo := NewMemoryDeviceRepository()
 
-	if repo == nil {
-		t.Errorf("NewMemoryDeviceRepository() returned nil")
-	}
-
-	if repo.devices == nil {
-		t.Errorf("NewMemoryDeviceRepository() devices map not initialized")
-	}
-
-	if len(repo.devices) != 0 {
-		t.Errorf("NewMemoryDeviceRepository() devices map should be empty initially")
-	}
+	assert.NotNil(t, repo, "NewMemoryDeviceRepository() returned nil")
+	assert.NotNil(t, repo.devices, "NewMemoryDeviceRepository() devices map not initialized")
+	assert.Empty(t, repo.devices, "NewMemoryDeviceRepository() devices map should be empty initially")
 }
 
 func TestMemoryDeviceRepository_Save(t *testing.T) {
@@ -35,24 +30,15 @@ func TestMemoryDeviceRepository_Save(t *testing.T) {
 		"192.168.1.100",
 		"Test Location",
 	)
-	if err != nil {
-		t.Fatalf("Failed to create device: %v", err)
-	}
+	require.NoError(t, err, "Failed to create device")
 
 	err = repo.Save(ctx, device)
-	if err != nil {
-		t.Errorf("Save() unexpected error: %v", err)
-	}
+	assert.NoError(t, err, "Save() unexpected error")
 
 	// Verify device was saved
 	savedDevice, exists := repo.devices[device.MACAddress]
-	if !exists {
-		t.Errorf("Save() device was not saved to repository")
-	}
-
-	if savedDevice != device {
-		t.Errorf("Save() saved device is not the same reference")
-	}
+	assert.True(t, exists, "Save() device was not saved to repository")
+	assert.Same(t, device, savedDevice, "Save() saved device is not the same reference")
 }
 
 func TestMemoryDeviceRepository_Save_NilDevice(t *testing.T) {
@@ -60,9 +46,7 @@ func TestMemoryDeviceRepository_Save_NilDevice(t *testing.T) {
 	ctx := context.Background()
 
 	err := repo.Save(ctx, nil)
-	if err == nil {
-		t.Errorf("Save() expected error for nil device but got none")
-	}
+	assert.Error(t, err, "Save() expected error for nil device but got none")
 }
 
 func TestMemoryDeviceRepository_Save_DuplicateMAC(t *testing.T) {
@@ -75,9 +59,7 @@ func TestMemoryDeviceRepository_Save_DuplicateMAC(t *testing.T) {
 		"192.168.1.100",
 		"Test Location 1",
 	)
-	if err != nil {
-		t.Fatalf("Failed to create device1: %v", err)
-	}
+	require.NoError(t, err, "Failed to create device1")
 
 	device2, err := entities.NewDevice(
 		"AA:BB:CC:DD:EE:FF",
@@ -85,31 +67,21 @@ func TestMemoryDeviceRepository_Save_DuplicateMAC(t *testing.T) {
 		"192.168.1.101",
 		"Test Location 2",
 	)
-	if err != nil {
-		t.Fatalf("Failed to create device2: %v", err)
-	}
+	require.NoError(t, err, "Failed to create device2")
 
 	// Save first device
 	err = repo.Save(ctx, device1)
-	if err != nil {
-		t.Errorf("Save() first device unexpected error: %v", err)
-	}
+	assert.NoError(t, err, "Save() first device unexpected error")
 
 	// Try to save second device with same MAC
 	err = repo.Save(ctx, device2)
-	if err == nil {
-		t.Errorf("Save() expected error for duplicate MAC address but got none")
-	}
+	assert.Error(t, err, "Save() expected error for duplicate MAC address but got none")
 
 	// Verify only first device exists
-	if len(repo.devices) != 1 {
-		t.Errorf("Save() expected 1 device after duplicate attempt, got %d", len(repo.devices))
-	}
+	assert.Len(t, repo.devices, 1, "Save() expected 1 device after duplicate attempt")
 
 	savedDevice := repo.devices[device1.MACAddress]
-	if savedDevice.DeviceName != device1.DeviceName {
-		t.Errorf("Save() first device should remain unchanged")
-	}
+	assert.Equal(t, device1.DeviceName, savedDevice.DeviceName, "Save() first device should remain unchanged")
 }
 
 func TestMemoryDeviceRepository_Update(t *testing.T) {
@@ -123,33 +95,22 @@ func TestMemoryDeviceRepository_Update(t *testing.T) {
 		"192.168.1.100",
 		"Test Location",
 	)
-	if err != nil {
-		t.Fatalf("Failed to create device: %v", err)
-	}
+	require.NoError(t, err, "Failed to create device")
 
 	err = repo.Save(ctx, device)
-	if err != nil {
-		t.Fatalf("Failed to save initial device: %v", err)
-	}
+	require.NoError(t, err, "Failed to save initial device")
 
 	// Update device
 	device.DeviceName = "Updated Device Name"
 	device.IPAddress = "192.168.1.101"
 
 	err = repo.Update(ctx, device)
-	if err != nil {
-		t.Errorf("Update() unexpected error: %v", err)
-	}
+	assert.NoError(t, err, "Update() unexpected error")
 
 	// Verify device was updated
 	updatedDevice := repo.devices[device.MACAddress]
-	if updatedDevice.DeviceName != "Updated Device Name" {
-		t.Errorf("Update() device name not updated")
-	}
-
-	if updatedDevice.IPAddress != "192.168.1.101" {
-		t.Errorf("Update() device IP not updated")
-	}
+	assert.Equal(t, "Updated Device Name", updatedDevice.DeviceName, "Update() device name not updated")
+	assert.Equal(t, "192.168.1.101", updatedDevice.IPAddress, "Update() device IP not updated")
 }
 
 func TestMemoryDeviceRepository_Update_NilDevice(t *testing.T) {
@@ -157,9 +118,7 @@ func TestMemoryDeviceRepository_Update_NilDevice(t *testing.T) {
 	ctx := context.Background()
 
 	err := repo.Update(ctx, nil)
-	if err == nil {
-		t.Errorf("Update() expected error for nil device but got none")
-	}
+	assert.Error(t, err, "Update() expected error for nil device but got none")
 }
 
 func TestMemoryDeviceRepository_Update_NonExistentDevice(t *testing.T) {
@@ -172,18 +131,11 @@ func TestMemoryDeviceRepository_Update_NonExistentDevice(t *testing.T) {
 		"192.168.1.100",
 		"Test Location",
 	)
-	if err != nil {
-		t.Fatalf("Failed to create device: %v", err)
-	}
+	require.NoError(t, err, "Failed to create device")
 
 	err = repo.Update(ctx, device)
-	if err == nil {
-		t.Errorf("Update() expected error for non-existent device but got none")
-	}
-
-	if len(repo.devices) != 0 {
-		t.Errorf("Update() should not add device when updating non-existent device")
-	}
+	assert.Error(t, err, "Update() expected error for non-existent device but got none")
+	assert.Empty(t, repo.devices, "Update() should not add device when updating non-existent device")
 }
 
 func TestMemoryDeviceRepository_FindByMACAddress(t *testing.T) {
@@ -197,33 +149,18 @@ func TestMemoryDeviceRepository_FindByMACAddress(t *testing.T) {
 		"192.168.1.100",
 		"Test Location",
 	)
-	if err != nil {
-		t.Fatalf("Failed to create device: %v", err)
-	}
+	require.NoError(t, err, "Failed to create device")
 
 	err = repo.Save(ctx, originalDevice)
-	if err != nil {
-		t.Fatalf("Failed to save device: %v", err)
-	}
+	require.NoError(t, err, "Failed to save device")
 
 	// Find device
 	foundDevice, err := repo.FindByMACAddress(ctx, "AA:BB:CC:DD:EE:FF")
-	if err != nil {
-		t.Errorf("FindByMACAddress() unexpected error: %v", err)
-	}
+	assert.NoError(t, err, "FindByMACAddress() unexpected error")
+	require.NotNil(t, foundDevice, "FindByMACAddress() expected device but got nil")
 
-	if foundDevice == nil {
-		t.Errorf("FindByMACAddress() expected device but got nil")
-		return
-	}
-
-	if foundDevice.MACAddress != originalDevice.MACAddress {
-		t.Errorf("FindByMACAddress() MAC address mismatch")
-	}
-
-	if foundDevice.DeviceName != originalDevice.DeviceName {
-		t.Errorf("FindByMACAddress() device name mismatch")
-	}
+	assert.Equal(t, originalDevice.MACAddress, foundDevice.MACAddress, "FindByMACAddress() MAC address mismatch")
+	assert.Equal(t, originalDevice.DeviceName, foundDevice.DeviceName, "FindByMACAddress() device name mismatch")
 }
 
 func TestMemoryDeviceRepository_FindByMACAddress_NotFound(t *testing.T) {
@@ -231,13 +168,8 @@ func TestMemoryDeviceRepository_FindByMACAddress_NotFound(t *testing.T) {
 	ctx := context.Background()
 
 	device, err := repo.FindByMACAddress(ctx, "AA:BB:CC:DD:EE:FF")
-	if err == nil {
-		t.Errorf("FindByMACAddress() expected error for non-existent device but got none")
-	}
-
-	if device != nil {
-		t.Errorf("FindByMACAddress() expected nil device but got %v", device)
-	}
+	assert.Error(t, err, "FindByMACAddress() expected error for non-existent device but got none")
+	assert.Nil(t, device, "FindByMACAddress() expected nil device")
 }
 
 func TestMemoryDeviceRepository_FindByMACAddress_EmptyMAC(t *testing.T) {
@@ -245,13 +177,8 @@ func TestMemoryDeviceRepository_FindByMACAddress_EmptyMAC(t *testing.T) {
 	ctx := context.Background()
 
 	device, err := repo.FindByMACAddress(ctx, "")
-	if err == nil {
-		t.Errorf("FindByMACAddress() expected error for empty MAC but got none")
-	}
-
-	if device != nil {
-		t.Errorf("FindByMACAddress() expected nil device but got %v", device)
-	}
+	assert.Error(t, err, "FindByMACAddress() expected error for empty MAC but got none")
+	assert.Nil(t, device, "FindByMACAddress() expected nil device")
 }
 
 func TestMemoryDeviceRepository_Exists(t *testing.T) {
@@ -260,13 +187,8 @@ func TestMemoryDeviceRepository_Exists(t *testing.T) {
 
 	// Check non-existent device
 	exists, err := repo.Exists(ctx, "AA:BB:CC:DD:EE:FF")
-	if err != nil {
-		t.Errorf("Exists() unexpected error: %v", err)
-	}
-
-	if exists {
-		t.Errorf("Exists() expected false for non-existent device")
-	}
+	assert.NoError(t, err, "Exists() unexpected error")
+	assert.False(t, exists, "Exists() expected false for non-existent device")
 
 	// Create and save device
 	device, err := entities.NewDevice(
@@ -275,24 +197,15 @@ func TestMemoryDeviceRepository_Exists(t *testing.T) {
 		"192.168.1.100",
 		"Test Location",
 	)
-	if err != nil {
-		t.Fatalf("Failed to create device: %v", err)
-	}
+	require.NoError(t, err, "Failed to create device")
 
 	err = repo.Save(ctx, device)
-	if err != nil {
-		t.Fatalf("Failed to save device: %v", err)
-	}
+	require.NoError(t, err, "Failed to save device")
 
 	// Check existing device
 	exists, err = repo.Exists(ctx, "AA:BB:CC:DD:EE:FF")
-	if err != nil {
-		t.Errorf("Exists() unexpected error: %v", err)
-	}
-
-	if !exists {
-		t.Errorf("Exists() expected true for existing device")
-	}
+	assert.NoError(t, err, "Exists() unexpected error")
+	assert.True(t, exists, "Exists() expected true for existing device")
 }
 
 func TestMemoryDeviceRepository_Delete(t *testing.T) {
@@ -306,36 +219,24 @@ func TestMemoryDeviceRepository_Delete(t *testing.T) {
 		"192.168.1.100",
 		"Test Location",
 	)
-	if err != nil {
-		t.Fatalf("Failed to create device: %v", err)
-	}
+	require.NoError(t, err, "Failed to create device")
 
 	err = repo.Save(ctx, device)
-	if err != nil {
-		t.Fatalf("Failed to save device: %v", err)
-	}
+	require.NoError(t, err, "Failed to save device")
 
 	// Verify device exists
-	if len(repo.devices) != 1 {
-		t.Errorf("Expected 1 device before delete, got %d", len(repo.devices))
-	}
+	assert.Len(t, repo.devices, 1, "Expected 1 device before delete")
 
 	// Delete device
 	err = repo.Delete(ctx, "AA:BB:CC:DD:EE:FF")
-	if err != nil {
-		t.Errorf("Delete() unexpected error: %v", err)
-	}
+	assert.NoError(t, err, "Delete() unexpected error")
 
 	// Verify device was deleted
-	if len(repo.devices) != 0 {
-		t.Errorf("Expected 0 devices after delete, got %d", len(repo.devices))
-	}
+	assert.Empty(t, repo.devices, "Expected 0 devices after delete")
 
 	// Verify device is no longer accessible
 	_, exists := repo.devices["AA:BB:CC:DD:EE:FF"]
-	if exists {
-		t.Errorf("Delete() device still exists in repository")
-	}
+	assert.False(t, exists, "Delete() device still exists in repository")
 }
 
 func TestMemoryDeviceRepository_Delete_NonExistent(t *testing.T) {
@@ -343,9 +244,7 @@ func TestMemoryDeviceRepository_Delete_NonExistent(t *testing.T) {
 	ctx := context.Background()
 
 	err := repo.Delete(ctx, "AA:BB:CC:DD:EE:FF")
-	if err == nil {
-		t.Errorf("Delete() expected error for non-existent device but got none")
-	}
+	assert.Error(t, err, "Delete() expected error for non-existent device but got none")
 }
 
 func TestMemoryDeviceRepository_List_Empty(t *testing.T) {
@@ -353,17 +252,9 @@ func TestMemoryDeviceRepository_List_Empty(t *testing.T) {
 	ctx := context.Background()
 
 	devices, err := repo.List(ctx, 0, 10)
-	if err != nil {
-		t.Errorf("List() unexpected error: %v", err)
-	}
-
-	if devices == nil {
-		t.Errorf("List() returned nil slice")
-	}
-
-	if len(devices) != 0 {
-		t.Errorf("List() expected empty slice, got %d devices", len(devices))
-	}
+	assert.NoError(t, err, "List() unexpected error")
+	assert.NotNil(t, devices, "List() returned nil slice")
+	assert.Empty(t, devices, "List() expected empty slice")
 }
 
 func TestMemoryDeviceRepository_List_AllDevices(t *testing.T) {
@@ -379,26 +270,17 @@ func TestMemoryDeviceRepository_List_AllDevices(t *testing.T) {
 			fmt.Sprintf("192.168.1.10%d", i),
 			fmt.Sprintf("Test Location %d", i),
 		)
-		if err != nil {
-			t.Fatalf("Failed to create device %d: %v", i, err)
-		}
+		require.NoError(t, err, "Failed to create device %d", i)
 		devices[i] = device
 
 		err = repo.Save(ctx, device)
-		if err != nil {
-			t.Fatalf("Failed to save device %d: %v", i, err)
-		}
+		require.NoError(t, err, "Failed to save device %d", i)
 	}
 
 	// List all devices (no pagination)
 	listedDevices, err := repo.List(ctx, 0, 10)
-	if err != nil {
-		t.Errorf("List() unexpected error: %v", err)
-	}
-
-	if len(listedDevices) != 3 {
-		t.Errorf("List() expected 3 devices, got %d", len(listedDevices))
-	}
+	assert.NoError(t, err, "List() unexpected error")
+	assert.Len(t, listedDevices, 3, "List() expected 3 devices")
 
 	// Verify all devices are present (order may vary)
 	deviceMACs := make(map[string]bool)
@@ -407,9 +289,7 @@ func TestMemoryDeviceRepository_List_AllDevices(t *testing.T) {
 	}
 
 	for _, originalDevice := range devices {
-		if !deviceMACs[originalDevice.MACAddress] {
-			t.Errorf("List() missing device with MAC %s", originalDevice.MACAddress)
-		}
+		assert.True(t, deviceMACs[originalDevice.MACAddress], "List() missing device with MAC %s", originalDevice.MACAddress)
 	}
 }
 
@@ -425,14 +305,10 @@ func TestMemoryDeviceRepository_List_Pagination(t *testing.T) {
 			fmt.Sprintf("192.168.1.10%d", i),
 			fmt.Sprintf("Test Location %d", i),
 		)
-		if err != nil {
-			t.Fatalf("Failed to create device %d: %v", i, err)
-		}
+		require.NoError(t, err, "Failed to create device %d", i)
 
 		err = repo.Save(ctx, device)
-		if err != nil {
-			t.Fatalf("Failed to save device %d: %v", i, err)
-		}
+		require.NoError(t, err, "Failed to save device %d", i)
 	}
 
 	tests := []struct {
@@ -453,13 +329,8 @@ func TestMemoryDeviceRepository_List_Pagination(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			devices, err := repo.List(ctx, tt.offset, tt.limit)
-			if err != nil {
-				t.Errorf("List() unexpected error: %v", err)
-			}
-
-			if len(devices) != tt.expectedCount {
-				t.Errorf("List() expected %d devices, got %d", tt.expectedCount, len(devices))
-			}
+			assert.NoError(t, err, "List() unexpected error")
+			assert.Len(t, devices, tt.expectedCount, "List() expected device count mismatch")
 		})
 	}
 }
@@ -475,24 +346,15 @@ func TestMemoryDeviceRepository_List_OffsetGreaterThanTotal(t *testing.T) {
 		"192.168.1.100",
 		"Test Location",
 	)
-	if err != nil {
-		t.Fatalf("Failed to create device: %v", err)
-	}
+	require.NoError(t, err, "Failed to create device")
 
 	err = repo.Save(ctx, device)
-	if err != nil {
-		t.Fatalf("Failed to save device: %v", err)
-	}
+	require.NoError(t, err, "Failed to save device")
 
 	// Request with offset greater than total devices
 	devices, err := repo.List(ctx, 5, 10)
-	if err != nil {
-		t.Errorf("List() unexpected error: %v", err)
-	}
-
-	if len(devices) != 0 {
-		t.Errorf("List() expected empty slice when offset > total, got %d devices", len(devices))
-	}
+	assert.NoError(t, err, "List() unexpected error")
+	assert.Empty(t, devices, "List() expected empty slice when offset > total")
 }
 
 // Concurrent access tests
@@ -558,19 +420,15 @@ func TestMemoryDeviceRepository_ConcurrentAccess_SaveAndRead(t *testing.T) {
 
 	// Check for errors
 	for err := range errors {
-		t.Errorf("Concurrent access error: %v", err)
+		assert.NoError(t, err, "Concurrent access error")
 	}
 
 	// Verify total device count
 	devices, err := repo.List(ctx, 0, 1000)
-	if err != nil {
-		t.Errorf("List() after concurrent access error: %v", err)
-	}
+	assert.NoError(t, err, "List() after concurrent access error")
 
 	expectedCount := numGoroutines * devicesPerGoroutine
-	if len(devices) != expectedCount {
-		t.Errorf("Expected %d devices after concurrent saves, got %d", expectedCount, len(devices))
-	}
+	assert.Len(t, devices, expectedCount, "Expected device count after concurrent saves")
 }
 
 func TestMemoryDeviceRepository_ConcurrentAccess_UpdateAndRead(t *testing.T) {
@@ -584,14 +442,10 @@ func TestMemoryDeviceRepository_ConcurrentAccess_UpdateAndRead(t *testing.T) {
 		"192.168.1.100",
 		"Initial Location",
 	)
-	if err != nil {
-		t.Fatalf("Failed to create initial device: %v", err)
-	}
+	require.NoError(t, err, "Failed to create initial device")
 
 	err = repo.Save(ctx, device)
-	if err != nil {
-		t.Fatalf("Failed to save initial device: %v", err)
-	}
+	require.NoError(t, err, "Failed to save initial device")
 
 	const numGoroutines = 10
 	var wg sync.WaitGroup
@@ -639,23 +493,16 @@ func TestMemoryDeviceRepository_ConcurrentAccess_UpdateAndRead(t *testing.T) {
 
 	// Check for errors
 	for err := range errors {
-		t.Errorf("Concurrent update/read error: %v", err)
+		assert.NoError(t, err, "Concurrent update/read error")
 	}
 
 	// Verify device still exists and was updated
 	finalDevice, err := repo.FindByMACAddress(ctx, "AA:BB:CC:DD:EE:FF")
-	if err != nil {
-		t.Errorf("FindByMACAddress() after concurrent updates error: %v", err)
-	}
-
-	if finalDevice == nil {
-		t.Errorf("Device should still exist after concurrent updates")
-	}
+	assert.NoError(t, err, "FindByMACAddress() after concurrent updates error")
+	assert.NotNil(t, finalDevice, "Device should still exist after concurrent updates")
 
 	// The final device name will be from one of the updates
-	if finalDevice.DeviceName == "Initial Device" {
-		t.Errorf("Device name should have been updated")
-	}
+	assert.NotEqual(t, "Initial Device", finalDevice.DeviceName, "Device name should have been updated")
 }
 
 func TestMemoryDeviceRepository_ConcurrentAccess_RaceCondition(t *testing.T) {
