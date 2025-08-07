@@ -116,19 +116,21 @@ func (m *DeviceRegistrationMessage) validateLocationDescription() error {
 
 // ToDevice converts the registration message to a Device entity
 func (m *DeviceRegistrationMessage) ToDevice() (*Device, error) {
-	device := &Device{
-		MACAddress:          m.MACAddress,
-		DeviceName:          m.DeviceName,
-		IPAddress:           m.IPAddress,
-		LocationDescription: m.LocationDescription,
-		RegisteredAt:        m.ReceivedAt,
-		LastSeen:            m.ReceivedAt,
-		Status:              "registered",
-	}
-	
-	if err := device.Validate(); err != nil {
+	device, err := NewDevice(
+		m.MACAddress,
+		m.DeviceName,
+		m.IPAddress,
+		m.LocationDescription,
+	)
+	if err != nil {
 		return nil, fmt.Errorf("invalid device created from registration message: %w", err)
 	}
+	
+	// Update the timestamps to match the received time
+	device.mu.Lock()
+	device.RegisteredAt = m.ReceivedAt
+	device.LastSeen = m.ReceivedAt
+	device.mu.Unlock()
 	
 	return device, nil
 }

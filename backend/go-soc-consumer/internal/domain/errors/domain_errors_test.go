@@ -2,6 +2,9 @@ package errors
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewDomainError(t *testing.T) {
@@ -41,26 +44,11 @@ func TestNewDomainError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := NewDomainError(tt.code, tt.message)
 
-			if err == nil {
-				t.Errorf("NewDomainError() returned nil")
-				return
-			}
-
-			if err.Code != tt.code {
-				t.Errorf("NewDomainError() code expected %s, got %s", tt.code, err.Code)
-			}
-
-			if err.Message != tt.message {
-				t.Errorf("NewDomainError() message expected %s, got %s", tt.message, err.Message)
-			}
-
-			if err.Details == nil {
-				t.Errorf("NewDomainError() Details should be initialized")
-			}
-
-			if len(err.Details) != 0 {
-				t.Errorf("NewDomainError() Details should be empty initially, got %d items", len(err.Details))
-			}
+			require.NotNil(t, err, "NewDomainError() returned nil")
+			assert.Equal(t, tt.code, err.Code, "NewDomainError() code mismatch")
+			assert.Equal(t, tt.message, err.Message, "NewDomainError() message mismatch")
+			assert.NotNil(t, err.Details, "NewDomainError() Details should be initialized")
+			assert.Empty(t, err.Details, "NewDomainError() Details should be empty initially")
 		})
 	}
 }
@@ -115,9 +103,7 @@ func TestDomainError_Error(t *testing.T) {
 			err := NewDomainError(tt.code, tt.message)
 			errorString := err.Error()
 
-			if errorString != tt.expectedString {
-				t.Errorf("Error() expected '%s', got '%s'", tt.expectedString, errorString)
-			}
+			assert.Equal(t, tt.expectedString, errorString, "Error() string format mismatch")
 		})
 	}
 }
@@ -129,23 +115,14 @@ func TestDomainError_WithDetails_SingleDetail(t *testing.T) {
 	result := err.WithDetails("field", "mac_address")
 
 	// Verify the same instance is returned
-	if result != err {
-		t.Errorf("WithDetails() should return the same instance")
-	}
+	assert.Same(t, err, result, "WithDetails() should return the same instance")
 
 	// Verify the detail was added
-	if len(err.Details) != 1 {
-		t.Errorf("WithDetails() expected 1 detail, got %d", len(err.Details))
-	}
+	assert.Len(t, err.Details, 1, "WithDetails() should have 1 detail")
 
 	value, exists := err.Details["field"]
-	if !exists {
-		t.Errorf("WithDetails() detail 'field' not found")
-	}
-
-	if value != "mac_address" {
-		t.Errorf("WithDetails() detail value expected 'mac_address', got %v", value)
-	}
+	assert.True(t, exists, "WithDetails() detail 'field' not found")
+	assert.Equal(t, "mac_address", value, "WithDetails() detail value mismatch")
 }
 
 func TestDomainError_WithDetails_MultipleDetails(t *testing.T) {
@@ -157,9 +134,7 @@ func TestDomainError_WithDetails_MultipleDetails(t *testing.T) {
 		WithDetails("field3", "ip_address")
 
 	// Verify all details were added
-	if len(err.Details) != 3 {
-		t.Errorf("WithDetails() expected 3 details, got %d", len(err.Details))
-	}
+	assert.Len(t, err.Details, 3, "WithDetails() should have 3 details")
 
 	expectedDetails := map[string]interface{}{
 		"field1": "mac_address",
@@ -169,13 +144,8 @@ func TestDomainError_WithDetails_MultipleDetails(t *testing.T) {
 
 	for key, expectedValue := range expectedDetails {
 		actualValue, exists := err.Details[key]
-		if !exists {
-			t.Errorf("WithDetails() detail '%s' not found", key)
-		}
-
-		if actualValue != expectedValue {
-			t.Errorf("WithDetails() detail '%s' expected %v, got %v", key, expectedValue, actualValue)
-		}
+		assert.True(t, exists, "WithDetails() detail '%s' not found", key)
+		assert.Equal(t, expectedValue, actualValue, "WithDetails() detail '%s' value mismatch", key)
 	}
 }
 
@@ -186,21 +156,14 @@ func TestDomainError_WithDetails_OverwriteDetail(t *testing.T) {
 	err.WithDetails("field", "initial_value")
 
 	// Verify initial detail
-	if err.Details["field"] != "initial_value" {
-		t.Errorf("WithDetails() initial value not set correctly")
-	}
+	assert.Equal(t, "initial_value", err.Details["field"], "WithDetails() initial value not set correctly")
 
 	// Overwrite the detail
 	err.WithDetails("field", "updated_value")
 
 	// Verify detail was overwritten
-	if len(err.Details) != 1 {
-		t.Errorf("WithDetails() should still have 1 detail after overwrite, got %d", len(err.Details))
-	}
-
-	if err.Details["field"] != "updated_value" {
-		t.Errorf("WithDetails() detail not overwritten correctly, got %v", err.Details["field"])
-	}
+	assert.Len(t, err.Details, 1, "WithDetails() should still have 1 detail after overwrite")
+	assert.Equal(t, "updated_value", err.Details["field"], "WithDetails() detail not overwritten correctly")
 }
 
 func TestDomainError_WithDetails_DifferentTypes(t *testing.T) {
@@ -214,34 +177,22 @@ func TestDomainError_WithDetails_DifferentTypes(t *testing.T) {
 		WithDetails("nil_field", nil)
 
 	// Verify all details were added with correct types
-	if len(err.Details) != 5 {
-		t.Errorf("WithDetails() expected 5 details, got %d", len(err.Details))
-	}
+	assert.Len(t, err.Details, 5, "WithDetails() should have 5 details")
 
 	// Test string field
-	if err.Details["string_field"] != "string_value" {
-		t.Errorf("WithDetails() string field incorrect")
-	}
+	assert.Equal(t, "string_value", err.Details["string_field"], "WithDetails() string field incorrect")
 
 	// Test int field
-	if err.Details["int_field"] != 42 {
-		t.Errorf("WithDetails() int field incorrect")
-	}
+	assert.Equal(t, 42, err.Details["int_field"], "WithDetails() int field incorrect")
 
 	// Test bool field
-	if err.Details["bool_field"] != true {
-		t.Errorf("WithDetails() bool field incorrect")
-	}
+	assert.Equal(t, true, err.Details["bool_field"], "WithDetails() bool field incorrect")
 
 	// Test float field
-	if err.Details["float_field"] != 3.14 {
-		t.Errorf("WithDetails() float field incorrect")
-	}
+	assert.Equal(t, 3.14, err.Details["float_field"], "WithDetails() float field incorrect")
 
 	// Test nil field
-	if err.Details["nil_field"] != nil {
-		t.Errorf("WithDetails() nil field incorrect")
-	}
+	assert.Nil(t, err.Details["nil_field"], "WithDetails() nil field incorrect")
 }
 
 func TestDomainError_WithDetails_ChainedCalls(t *testing.T) {
@@ -253,14 +204,10 @@ func TestDomainError_WithDetails_ChainedCalls(t *testing.T) {
 		WithDetails("key3", "value3")
 
 	// Verify it's the same instance
-	if result != err {
-		t.Errorf("WithDetails() chained calls should return the same instance")
-	}
+	assert.Same(t, err, result, "WithDetails() chained calls should return the same instance")
 
 	// Verify all details are present
-	if len(err.Details) != 3 {
-		t.Errorf("WithDetails() chained calls expected 3 details, got %d", len(err.Details))
-	}
+	assert.Len(t, err.Details, 3, "WithDetails() chained calls should have 3 details")
 }
 
 func TestPredefinedErrors(t *testing.T) {
@@ -292,28 +239,14 @@ func TestPredefinedErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.error == nil {
-				t.Errorf("Predefined error %s is nil", tt.name)
-				return
-			}
-
-			if tt.error.Code != tt.expectedCode {
-				t.Errorf("Predefined error %s code expected %s, got %s", tt.name, tt.expectedCode, tt.error.Code)
-			}
-
-			if tt.error.Message != tt.expectedMsg {
-				t.Errorf("Predefined error %s message expected %s, got %s", tt.name, tt.expectedMsg, tt.error.Message)
-			}
-
-			if tt.error.Details == nil {
-				t.Errorf("Predefined error %s Details should be initialized", tt.name)
-			}
+			require.NotNil(t, tt.error, "Predefined error %s is nil", tt.name)
+			assert.Equal(t, tt.expectedCode, tt.error.Code, "Predefined error %s code mismatch", tt.name)
+			assert.Equal(t, tt.expectedMsg, tt.error.Message, "Predefined error %s message mismatch", tt.name)
+			assert.NotNil(t, tt.error.Details, "Predefined error %s Details should be initialized", tt.name)
 
 			// Verify error string format
 			expectedErrorString := "domain error [" + tt.expectedCode + "]: " + tt.expectedMsg
-			if tt.error.Error() != expectedErrorString {
-				t.Errorf("Predefined error %s Error() expected '%s', got '%s'", tt.name, expectedErrorString, tt.error.Error())
-			}
+			assert.Equal(t, expectedErrorString, tt.error.Error(), "Predefined error %s Error() string mismatch", tt.name)
 		})
 	}
 }
@@ -322,18 +255,11 @@ func TestPredefinedErrors_WithDetails(t *testing.T) {
 	// Test that predefined errors can have details added
 	internalServerErr := ErrInternalServer.WithDetails("operation", "device_save")
 	
-	if len(internalServerErr.Details) != 1 {
-		t.Errorf("ErrInternalServer.WithDetails() expected 1 detail, got %d", len(internalServerErr.Details))
-	}
-
-	if internalServerErr.Details["operation"] != "device_save" {
-		t.Errorf("ErrInternalServer.WithDetails() detail not set correctly")
-	}
+	assert.Len(t, internalServerErr.Details, 1, "ErrInternalServer.WithDetails() should have 1 detail")
+	assert.Equal(t, "device_save", internalServerErr.Details["operation"], "ErrInternalServer.WithDetails() detail not set correctly")
 
 	// Verify the original predefined error is modified (since it's the same instance)
-	if ErrInternalServer != internalServerErr {
-		t.Errorf("ErrInternalServer.WithDetails() should return the same instance")
-	}
+	assert.Same(t, ErrInternalServer, internalServerErr, "ErrInternalServer.WithDetails() should return the same instance")
 
 	// Reset for other tests (this is a side effect we need to handle)
 	delete(ErrInternalServer.Details, "operation")
@@ -351,30 +277,14 @@ func TestPredefinedErrors_Independence(t *testing.T) {
 	ErrInvalidInput.WithDetails("test_invalid", "value3")
 
 	// Verify they don't affect each other
-	if len(ErrInternalServer.Details) != originalInternalCount + 1 {
-		t.Errorf("ErrInternalServer details count incorrect")
-	}
-
-	if len(ErrNotFound.Details) != originalNotFoundCount + 1 {
-		t.Errorf("ErrNotFound details count incorrect")
-	}
-
-	if len(ErrInvalidInput.Details) != originalInvalidInputCount + 1 {
-		t.Errorf("ErrInvalidInput details count incorrect")
-	}
+	assert.Equal(t, originalInternalCount+1, len(ErrInternalServer.Details), "ErrInternalServer details count incorrect")
+	assert.Equal(t, originalNotFoundCount+1, len(ErrNotFound.Details), "ErrNotFound details count incorrect")
+	assert.Equal(t, originalInvalidInputCount+1, len(ErrInvalidInput.Details), "ErrInvalidInput details count incorrect")
 
 	// Verify the specific details
-	if ErrInternalServer.Details["test_internal"] != "value1" {
-		t.Errorf("ErrInternalServer detail not set correctly")
-	}
-
-	if ErrNotFound.Details["test_not_found"] != "value2" {
-		t.Errorf("ErrNotFound detail not set correctly")
-	}
-
-	if ErrInvalidInput.Details["test_invalid"] != "value3" {
-		t.Errorf("ErrInvalidInput detail not set correctly")
-	}
+	assert.Equal(t, "value1", ErrInternalServer.Details["test_internal"], "ErrInternalServer detail not set correctly")
+	assert.Equal(t, "value2", ErrNotFound.Details["test_not_found"], "ErrNotFound detail not set correctly")
+	assert.Equal(t, "value3", ErrInvalidInput.Details["test_invalid"], "ErrInvalidInput detail not set correctly")
 
 	// Clean up
 	delete(ErrInternalServer.Details, "test_internal")
@@ -389,12 +299,8 @@ func TestDomainError_AsStandardError(t *testing.T) {
 	// Should be able to assign to error interface
 	var standardErr error = err
 
-	if standardErr == nil {
-		t.Errorf("DomainError should be assignable to error interface")
-	}
+	assert.NotNil(t, standardErr, "DomainError should be assignable to error interface")
 
 	// Error() method should be called
-	if standardErr.Error() != "domain error [TEST_ERROR]: Test message" {
-		t.Errorf("DomainError as standard error should call Error() method")
-	}
+	assert.Equal(t, "domain error [TEST_ERROR]: Test message", standardErr.Error(), "DomainError as standard error should call Error() method")
 }

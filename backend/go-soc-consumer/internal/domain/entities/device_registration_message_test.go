@@ -2,6 +2,9 @@ package entities
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewDeviceRegistrationMessage(t *testing.T) {
@@ -81,24 +84,14 @@ func TestNewDeviceRegistrationMessage(t *testing.T) {
 			)
 
 			if tt.wantError {
-				if err == nil {
-					t.Errorf("NewDeviceRegistrationMessage() expected error but got none")
-				}
-				if msg != nil {
-					t.Errorf("NewDeviceRegistrationMessage() expected nil message but got %v", msg)
-				}
+				assert.Error(t, err, "NewDeviceRegistrationMessage() expected error but got none")
+				assert.Nil(t, msg, "NewDeviceRegistrationMessage() expected nil message")
 			} else {
-				if err != nil {
-					t.Errorf("NewDeviceRegistrationMessage() unexpected error: %v", err)
-				}
-				if msg == nil {
-					t.Errorf("NewDeviceRegistrationMessage() expected message but got nil")
-				}
+				require.NoError(t, err, "NewDeviceRegistrationMessage() unexpected error")
+				require.NotNil(t, msg, "NewDeviceRegistrationMessage() expected message but got nil")
 
 				// Verify MAC address is normalized to uppercase
-				if msg != nil && msg.MACAddress != "AA:BB:CC:DD:EE:FF" {
-					t.Errorf("NewDeviceRegistrationMessage() MAC address not normalized correctly, got %s", msg.MACAddress)
-				}
+				assert.Equal(t, "AA:BB:CC:DD:EE:FF", msg.MACAddress, "NewDeviceRegistrationMessage() MAC address not normalized correctly")
 			}
 		})
 	}
@@ -111,30 +104,15 @@ func TestDeviceRegistrationMessage_ToDevice(t *testing.T) {
 		"192.168.1.100",
 		"Test Location",
 	)
-	if err != nil {
-		t.Fatalf("Failed to create registration message: %v", err)
-	}
+	require.NoError(t, err, "Failed to create registration message")
 
 	device, err := msg.ToDevice()
-	if err != nil {
-		t.Fatalf("Failed to convert to device: %v", err)
-	}
+	require.NoError(t, err, "Failed to convert to device")
 
-	if device.MACAddress != msg.MACAddress {
-		t.Errorf("Device MAC address mismatch: expected %s, got %s", msg.MACAddress, device.MACAddress)
-	}
-
-	if device.DeviceName != msg.DeviceName {
-		t.Errorf("Device name mismatch: expected %s, got %s", msg.DeviceName, device.DeviceName)
-	}
-
-	if device.IPAddress != msg.IPAddress {
-		t.Errorf("Device IP address mismatch: expected %s, got %s", msg.IPAddress, device.IPAddress)
-	}
-
-	if device.LocationDescription != msg.LocationDescription {
-		t.Errorf("Device location description mismatch: expected %s, got %s", msg.LocationDescription, device.LocationDescription)
-	}
+	assert.Equal(t, msg.MACAddress, device.MACAddress, "Device MAC address mismatch")
+	assert.Equal(t, msg.DeviceName, device.DeviceName, "Device name mismatch")
+	assert.Equal(t, msg.IPAddress, device.IPAddress, "Device IP address mismatch")
+	assert.Equal(t, msg.LocationDescription, device.LocationDescription, "Device location description mismatch")
 }
 
 func TestDeviceRegistrationMessage_GetDeviceIdentifier(t *testing.T) {
@@ -144,14 +122,10 @@ func TestDeviceRegistrationMessage_GetDeviceIdentifier(t *testing.T) {
 		"192.168.1.100",
 		"Test Location",
 	)
-	if err != nil {
-		t.Fatalf("Failed to create registration message: %v", err)
-	}
+	require.NoError(t, err, "Failed to create registration message")
 
 	identifier := msg.GetDeviceIdentifier()
 	expected := "AA:BB:CC:DD:EE:FF"
 
-	if identifier != expected {
-		t.Errorf("GetDeviceIdentifier() expected %s, got %s", expected, identifier)
-	}
+	assert.Equal(t, expected, identifier, "GetDeviceIdentifier() result mismatch")
 }

@@ -5,11 +5,13 @@ import (
 	"net"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
 // Device represents an IoT device in the smart irrigation system
 type Device struct {
+	mu                  sync.RWMutex
 	MACAddress          string
 	DeviceName          string
 	IPAddress           string
@@ -19,15 +21,17 @@ type Device struct {
 	Status              string // "registered", "online", "offline"
 }
 
-// NewDevice creates a new device with validation
+
+// NewDevice creates a new device with validation and normalization
 func NewDevice(macAddress, deviceName, ipAddress, locationDescription string) (*Device, error) {
+	now := time.Now()
 	device := &Device{
 		MACAddress:          strings.ToUpper(strings.TrimSpace(macAddress)),
 		DeviceName:          strings.TrimSpace(deviceName),
 		IPAddress:           strings.TrimSpace(ipAddress),
 		LocationDescription: strings.TrimSpace(locationDescription),
-		RegisteredAt:        time.Now(),
-		LastSeen:            time.Now(),
+		RegisteredAt:        now,
+		LastSeen:            now,
 		Status:              "registered",
 	}
 
@@ -36,6 +40,17 @@ func NewDevice(macAddress, deviceName, ipAddress, locationDescription string) (*
 	}
 
 	return device, nil
+}
+
+// Normalize ensures all fields are properly formatted and trimmed
+func (d *Device) Normalize() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	
+	d.MACAddress = strings.ToUpper(strings.TrimSpace(d.MACAddress))
+	d.DeviceName = strings.TrimSpace(d.DeviceName)
+	d.IPAddress = strings.TrimSpace(d.IPAddress)
+	d.LocationDescription = strings.TrimSpace(d.LocationDescription)
 }
 
 // Validate validates the device fields
@@ -157,17 +172,26 @@ func (d *Device) validateStatus() error {
 
 // UpdateStatus updates the device status and last seen timestamp
 func (d *Device) UpdateStatus(status string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	
 	// Save the current status in case we need to roll back
 	originalStatus := d.Status
 	
 	// Update the status for validation
 	d.Status = status
 	
-	// Validate the new status
-	if err := d.validateStatus(); err != nil {
+	// Validate the new status (using the current implementation for simplicity)
+	validStatuses := map[string]bool{
+		"registered": true,
+		"online":     true,
+		"offline":    true,
+	}
+	
+	if !validStatuses[status] {
 		// Roll back the status on validation error
 		d.Status = originalStatus
-		return fmt.Errorf("invalid status update: %w", err)
+		return fmt.Errorf("invalid status update: %s. Valid statuses: registered, online, offline", status)
 	}
 	
 	// Only update LastSeen if the status is valid
@@ -177,27 +201,79 @@ func (d *Device) UpdateStatus(status string) error {
 
 // MarkOnline marks the device as online
 func (d *Device) MarkOnline() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.Status = "online"
 	d.LastSeen = time.Now()
 }
 
 // MarkOffline marks the device as offline
 func (d *Device) MarkOffline() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	d.Status = "offline"
 	d.LastSeen = time.Now()
 }
 
 // IsOnline returns true if the device is currently online
 func (d *Device) IsOnline() bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	return d.Status == "online"
 }
 
 // IsOffline returns true if the device is currently offline
 func (d *Device) IsOffline() bool {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	return d.Status == "offline"
 }
 
 // GetID returns a unique identifier for the device (MAC address)
 func (d *Device) GetID() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 	return d.MACAddress
+}
+
+// SetDeviceName safely updates the device name
+func (d *Device) SetDeviceName(name string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.DeviceName = strings.TrimSpace(name)
+}
+
+// GetDeviceName safely returns the device name
+func (d *Device) GetDeviceName() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.DeviceName
+}
+
+// SetIPAddress safely updates the IP address
+func (d *Device) SetIPAddress(ip string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.IPAddress = strings.TrimSpace(ip)
+}
+
+// GetIPAddress safely returns the IP address
+func (d *Device) GetIPAddress() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.IPAddress
+}
+
+// GetStatus safely returns the device status
+func (d *Device) GetStatus() string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.Status
+}
+
+// GetLastSeen safely returns the last seen timestamp
+func (d *Device) GetLastSeen() time.Time {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.LastSeen
 }
