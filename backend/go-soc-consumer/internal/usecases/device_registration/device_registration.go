@@ -16,13 +16,15 @@ type DeviceRegistrationUseCase interface {
 
 // UseCase handles device registration business logic
 type useCaseImpl struct {
-	deviceRepo ports.DeviceRepository
+	deviceRepo     ports.DeviceRepository
+	eventPublisher ports.EventPublisher
 }
 
 // NewDeviceRegistrationUseCase creates a new device registration use case
-func NewDeviceRegistrationUseCase(deviceRepo ports.DeviceRepository) *useCaseImpl {
+func NewDeviceRegistrationUseCase(deviceRepo ports.DeviceRepository, eventPublisher ports.EventPublisher) *useCaseImpl {
 	return &useCaseImpl{
-		deviceRepo: deviceRepo,
+		deviceRepo:     deviceRepo,
+		eventPublisher: eventPublisher,
 	}
 }
 
@@ -58,16 +60,22 @@ func (uc *useCaseImpl) createNewDevice(ctx context.Context, message *entities.De
 	}
 
 	log.Printf("Successfully registered new device: %s (%s)", device.DeviceName, device.MACAddress)
+
+	// Publish device detected event AFTER successful database operation
+	// Event publishing failure should NOT fail the registration process
+	uc.publishDeviceDetectedEvent(ctx, device.GetID(), device.GetIPAddress())
+
 	return nil
 }
 
 // updateExistingDevice updates an existing device with new information
 func (uc *useCaseImpl) updateExistingDevice(ctx context.Context, existingDevice *entities.Device, message *entities.DeviceRegistrationMessage) error {
 	// Update device information
-	existingDevice.DeviceName = message.DeviceName
-	existingDevice.IPAddress = message.IPAddress
+	existingDevice.SetDeviceName(message.DeviceName)
+	existingDevice.SetIPAddress(message.IPAddress)
 	existingDevice.LocationDescription = message.LocationDescription
 	existingDevice.LastSeen = message.ReceivedAt
+
 	// Validate updated device
 	if err := existingDevice.Validate(); err != nil {
 		return fmt.Errorf("updated device validation failed: %w", err)
@@ -78,8 +86,46 @@ func (uc *useCaseImpl) updateExistingDevice(ctx context.Context, existingDevice 
 		return fmt.Errorf("failed to update existing device: %w", err)
 	}
 
-	log.Printf("Successfully updated existing device: %s (%s)", existingDevice.DeviceName, existingDevice.MACAddress)
+	log.Printf("Successfully updated existing device: %s (%s)", existingDevice.GetDeviceName(), existingDevice.GetID())
+
+	// Publish device detected event AFTER successful database operation
+	uc.publishDeviceDetectedEvent(ctx, existingDevice.GetID(), existingDevice.GetIPAddress())
+
 	return nil
+}
+
+// publishDeviceDetectedEvent publishes a device detected event
+// This method logs errors but does not return them to avoid breaking the registration flow
+func (uc *useCaseImpl) publishDeviceDetectedEvent(ctx context.Context, macAddress, ipAddress string) {
+	// Skip if no event publisher is configured
+	if uc.eventPublisher == nil {
+		log.Printf("No event publisher configured, skipping event for device: %s", macAddress)
+		return
+	}
+
+	// Check if publisher is connected
+	if !uc.eventPublisher.IsConnected() {
+		log.Printf("Event publisher not connected, skipping event for device: %s", macAddress)
+		return
+	}
+
+	// Create device detected event
+	event, err := entities.NewDeviceDetectedEvent(macAddress, ipAddress)
+	if err != nil {
+		log.Printf("Failed to create device detected event for %s: %v", macAddress, err)
+		return
+	}
+
+	// Publish event (fire-and-forget with logging)
+	subject := event.GetSubject()
+	if err := uc.eventPublisher.Publish(ctx, subject, event); err != nil {
+		log.Printf("Failed to publish device detected event for %s to subject %s: %v",
+			macAddress, subject, err)
+		return
+	}
+
+	log.Printf("Successfully published device detected event for device: %s (Event ID: %s)",
+		macAddress, event.EventID)
 }
 
 // MessageHandler implements the ports.MessageHandler interface

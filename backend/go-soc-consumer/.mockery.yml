@@ -20,3 +20,7 @@ packages:
   github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/device_registration:
     config:
       all: true
+  github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/device_health:
+    config:
+      all: true
+      

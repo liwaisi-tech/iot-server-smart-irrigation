@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/models"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/persistence/postgres/models"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/config"
 )
 
@@ -22,10 +22,10 @@ type GormPostgresDB struct {
 }
 
 var (
-	instance     *GormPostgresDB
-	once         sync.Once
-	initError   error
-	initMutex   sync.Mutex
+	instance  *GormPostgresDB
+	once      sync.Once
+	initError error
+	initMutex sync.Mutex
 )
 
 // NewGormPostgresDBWithoutConfig creates a new GORM PostgreSQL database connection without a config for testing purposes

@@ -1,4 +1,4 @@
-package messaging
+package mqtt
 
 import (
 	"context"
@@ -116,15 +116,15 @@ func (m *MockMQTTToken) Error() error {
 // TestNewMQTTConsumer tests the constructor
 func TestNewMQTTConsumer(t *testing.T) {
 	config := MQTTConsumerConfig{
-		BrokerURL:             "tcp://localhost:1883",
-		ClientID:              "test-client",
-		Username:              "test-user",
-		Password:              "test-pass",
-		ConnectTimeout:        30 * time.Second,
-		KeepAlive:             60 * time.Second,
-		CleanSession:          true,
-		AutoReconnect:         true,
-		MaxReconnectInterval:  10 * time.Minute,
+		BrokerURL:            "tcp://localhost:1883",
+		ClientID:             "test-client",
+		Username:             "test-user",
+		Password:             "test-pass",
+		ConnectTimeout:       30 * time.Second,
+		KeepAlive:            60 * time.Second,
+		CleanSession:         true,
+		AutoReconnect:        true,
+		MaxReconnectInterval: 10 * time.Minute,
 	}
 
 	consumer := NewMQTTConsumer(config)
@@ -138,9 +138,9 @@ func TestNewMQTTConsumer(t *testing.T) {
 // TestMQTTConsumer_Stop tests the Stop method
 func TestMQTTConsumer_Stop(t *testing.T) {
 	tests := []struct {
-		name         string
-		setupClient  func(t *testing.T) *MockMQTTClient
-		wantErr      bool
+		name        string
+		setupClient func(t *testing.T) *MockMQTTClient
+		wantErr     bool
 	}{
 		{
 			name: "successful stop with connected client",
@@ -178,7 +178,7 @@ func TestMQTTConsumer_Stop(t *testing.T) {
 			}
 
 			consumer := NewMQTTConsumer(config)
-			
+
 			if tt.setupClient != nil {
 				mockClient := tt.setupClient(t)
 				if mockClient != nil {
@@ -412,7 +412,7 @@ func TestMQTTConsumer_IsConnected(t *testing.T) {
 			}
 
 			consumer := NewMQTTConsumer(config)
-			
+
 			if tt.setup != nil {
 				mockClient := tt.setup(t)
 				if mockClient != nil {
@@ -437,28 +437,28 @@ func TestMQTTConsumer_MessageHandling(t *testing.T) {
 		}
 
 		consumer := NewMQTTConsumer(config)
-		
+
 		// Create a test handler
 		var receivedTopic string
 		var receivedPayload []byte
 		var handlerError error
-		
+
 		testHandler := func(ctx context.Context, topic string, payload []byte) error {
 			receivedTopic = topic
 			receivedPayload = payload
 			return handlerError
 		}
-		
+
 		consumer.handler = testHandler
-		
+
 		// Test that our handler works correctly
 		err := testHandler(context.Background(), "test/topic", []byte("test payload"))
-		
+
 		assert.NoError(t, err)
 		assert.Equal(t, "test/topic", receivedTopic)
 		assert.Equal(t, []byte("test payload"), receivedPayload)
 	})
-	
+
 	t.Run("message handler handles errors", func(t *testing.T) {
 		config := MQTTConsumerConfig{
 			BrokerURL: "tcp://localhost:1883",
@@ -466,14 +466,14 @@ func TestMQTTConsumer_MessageHandling(t *testing.T) {
 		}
 
 		consumer := NewMQTTConsumer(config)
-		
+
 		// Create a handler that returns an error
 		testHandler := func(ctx context.Context, topic string, payload []byte) error {
 			return errors.New("handler error")
 		}
-		
+
 		consumer.handler = testHandler
-		
+
 		// Test that the handler returns the expected error
 		err := testHandler(context.Background(), "test/topic", []byte("test payload"))
 		assert.Error(t, err)
@@ -540,28 +540,28 @@ func TestMessageConsumerInterface_Subscribe(t *testing.T) {
 func TestMessageConsumerInterface_Operations(t *testing.T) {
 	t.Run("start and stop lifecycle", func(t *testing.T) {
 		mockConsumer := mocks.NewMockMessageConsumer(t)
-		
+
 		// Setup expectations
 		mockConsumer.EXPECT().Start(mock.Anything).Return(nil).Once()
 		mockConsumer.EXPECT().IsConnected().Return(true).Once()
 		mockConsumer.EXPECT().Stop(mock.Anything).Return(nil).Once()
-		
+
 		// Test lifecycle
 		err := mockConsumer.Start(context.Background())
 		assert.NoError(t, err)
-		
+
 		connected := mockConsumer.IsConnected()
 		assert.True(t, connected)
-		
+
 		err = mockConsumer.Stop(context.Background())
 		assert.NoError(t, err)
 	})
 
 	t.Run("unsubscribe operation", func(t *testing.T) {
 		mockConsumer := mocks.NewMockMessageConsumer(t)
-		
+
 		mockConsumer.EXPECT().Unsubscribe("test/topic").Return(nil).Once()
-		
+
 		err := mockConsumer.Unsubscribe("test/topic")
 		assert.NoError(t, err)
 	})
@@ -685,7 +685,7 @@ func TestSampleMessageService(t *testing.T) {
 	})
 }
 
-// Benchmark tests  
+// Benchmark tests
 func BenchmarkMQTTConsumer_MessageHandling(b *testing.B) {
 	config := MQTTConsumerConfig{
 		BrokerURL: "tcp://localhost:1883",
@@ -693,14 +693,14 @@ func BenchmarkMQTTConsumer_MessageHandling(b *testing.B) {
 	}
 
 	consumer := NewMQTTConsumer(config)
-	
+
 	// Simple handler for benchmarking
 	testHandler := func(ctx context.Context, topic string, payload []byte) error {
 		return nil
 	}
-	
+
 	consumer.handler = testHandler
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		testHandler(context.Background(), "test/topic", []byte("test payload"))

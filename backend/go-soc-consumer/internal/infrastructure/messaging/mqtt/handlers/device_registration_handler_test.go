@@ -18,7 +18,8 @@ import (
 func TestNewDeviceRegistrationHandler(t *testing.T) {
 	// Create a real use case with a mock repository for testing
 	mockRepo := mocks.NewMockDeviceRepository(t)
-	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo)
+	mockPublisher := mocks.NewMockEventPublisher(t)
+	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo, mockPublisher)
 	handler := NewDeviceRegistrationHandler(realUseCase)
 
 	assert.NotNil(t, handler, "NewDeviceRegistrationHandler() returned nil")
@@ -397,7 +398,8 @@ func TestDeviceRegistrationHandler_Integration(t *testing.T) {
 func TestDeviceRegistrationHandler_RealUseCaseIntegration(t *testing.T) {
 	// This test uses a real use case with mock repository to test full integration
 	mockRepo := mocks.NewMockDeviceRepository(t)
-	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo)
+	mockPublisher := mocks.NewMockEventPublisher(t)
+	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo, mockPublisher)
 	handler := NewDeviceRegistrationHandler(realUseCase)
 
 	payload := map[string]interface{}{
