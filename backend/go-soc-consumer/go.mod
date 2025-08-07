@@ -3,6 +3,7 @@ module github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consum
 go 1.23.11
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/eclipse/paho.mqtt.golang v1.5.0
 	github.com/golang-migrate/migrate/v4 v4.18.3
 	github.com/lib/pq v1.10.9
@@ -12,7 +13,6 @@ require (
 )
 
 require (
-	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
