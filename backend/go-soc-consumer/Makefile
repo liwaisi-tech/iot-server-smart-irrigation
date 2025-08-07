@@ -1,4 +1,4 @@
-.PHONY: help build run test test-postgres clean migrate-up migrate-down check-linter
+.PHONY: help build run test clean check-linter dev-info
 
 # Default target
 help:

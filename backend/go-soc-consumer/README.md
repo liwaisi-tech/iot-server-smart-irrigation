@@ -1,51 +1,106 @@
 # IoT Smart Irrigation - Go SOC Consumer
 
-This is a Go-based message consumer for the IoT Smart Irrigation system. It handles device registration messages via MQTT and provides a REST API for device management.
+This repository contains the backend service for the IoT Smart Irrigation System, responsible for consuming and processing messages from IoT devices. This service is built with Go and follows clean architecture principles to ensure a modular, scalable, and maintainable codebase.
+
+## Overview
+
+The Go SOC (System on Chip) Consumer is a critical component that listens for events from IoT devices, such as registration requests and health status updates. It processes these events and interacts with other parts of the system, like the database, to keep the device registry and status up-to-date.
 
 ## Features
 
-- **In-Memory Storage**: Fast in-memory repository for development and testing
-- **MQTT Message Consumption**: Handles device registration messages
-- **REST API**: Ping endpoint for health checks
-- **Hexagonal Architecture**: Clean separation of concerns with domain-driven design
-- **Docker Support**: Complete Docker Compose setup for development
-- **Comprehensive Testing**: Unit and integration tests included
-- **Database Migrations**: Automated PostgreSQL schema management
+-   **Device Registration:** Handles the registration of new IoT devices into the system.
+-   **Device Health Monitoring:** Processes health check messages from devices to monitor their status.
+-   **MQTT Integration:** Consumes messages from an MQTT broker.
+-   **Clean Architecture:** Organized into distinct layers (`domain`, `usecases`, `infrastructure`, `presentation`) for separation of concerns.
 
-## Quick Start
+## Project Structure
+
+The project follows a standard Go project layout with a clean architecture approach:
+
+```
+.
+├── cmd/                # Application entry point
+├── internal/           # Private application and library code
+│   ├── app/            # Application-specific logic
+│   ├── domain/         # Core domain entities and business rules
+│   ├── infrastructure/ # External concerns (database, messaging)
+│   ├── presentation/   # API definitions and transport layer
+│   └── usecases/       # Application-specific use cases
+├── pkg/                # Public library code
+├── mocks/              # Generated mocks for testing
+├── go.mod              # Go module definition
+└── Makefile            # Project commands
+```
+
+## Getting Started
+
+### Prerequisites
+
+-   [Go](https://golang.org/doc/install) (version 1.23 or higher)
+-   [Docker](https://www.docker.com/get-started) and [Docker Compose](https://docs.docker.com/compose/install/)
+-   [make](https://www.gnu.org/software/make/)
+
+### Installation
+
+1.  **Clone the repository:**
+    ```sh
+    git clone https://github.com/liwaisi-tech/iot-server-smart-irrigation.git
+    cd iot-server-smart-irrigation/backend/go-soc-consumer
+    ```
+
+2.  **Set up environment variables:**
+
+    Copy the example environment file and update it with your configuration details.
+
+    ```sh
+    cp .env.example .env
+    ```
+
+3.  **Install dependencies:**
+
+    ```sh
+    go mod tidy
+    ```
 
 ### Running the Application
 
-```bash
-# Clone and build
-go build -o bin/iot-consumer ./cmd/server
+To run the application, use the following `make` command:
 
-# Run with in-memory storage (default)
-./bin/iot-consumer
+```sh
+make run
 ```
 
-## Configuration
+This will start the service, which will then connect to the configured MQTT broker and start consuming messages.
 
-The application uses environment variables for configuration. Copy `.env.example` to `.env` and modify as needed:
+## Usage
 
-```bash
-cp .env.example .env
+### Makefile Commands
+
+The `Makefile` includes several useful commands for development and testing:
+
+-   `make help`: Displays a help message with all available commands.
+-   `make build`: Compiles the application.
+-   `make run`: Runs the application.
+-   `make test`: Runs the test suite.
+-   `make clean`: Cleans up build artifacts.
+-   `make check-linter`: Runs the static code analyzer.
+-   `make dev-info`: Shows development environment setup instructions.
+
+### Configuration
+
+The application is configured using environment variables. See the `.env.example` file for a complete list of available options. Key configuration areas include:
+
+-   `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`: PostgreSQL database connection details.
+-   `MQTT_BROKER`, `MQTT_CLIENT_ID`, `MQTT_USER`, `MQTT_PASSWORD`: MQTT broker connection details.
+-   `LOG_LEVEL`: Logging level (e.g., `debug`, `info`, `warn`, `error`).
+
+## Testing
+
+To run the full suite of tests, use:
+
+```sh
+make test
 ```
-
-**Important**: This application uses the PostgreSQL service configured in the root `docker-compose.yml`. Make sure to set the `POSTGRES_PASSWORD` environment variable that matches your root configuration.
-
-### Key Environment Variables
-
-- `MQTT_BROKER_URL`: MQTT broker connection string
-- `MQTT_BROKER_URL`: MQTT broker connection string
-- `HTTP_PORT`: HTTP server port (default: 8080)
-- `POSTGRES_PASSWORD`: Password for the PostgreSQL service (configured in root docker-compose.yml)
-
-## API Endpoints
-
-- `GET /ping` - Health check endpoint
-
-## Development
 
 ### Prerequisites
 
@@ -65,9 +120,6 @@ make run
 # Run tests
 make test
 
-# Run PostgreSQL integration tests (requires root PostgreSQL service)
-make test-postgres
-
 # Show development environment info
 make dev-info
 
@@ -77,18 +129,8 @@ make clean
 
 ### Database Migrations
 
-Migrations are automatically applied when the application starts with PostgreSQL. Manual migration commands (requires root PostgreSQL service running):
+Migrations are automatically applied when the application starts with PostgreSQL using GORM.
 
-```bash
-# Apply migrations
-POSTGRES_PASSWORD=yourpassword make migrate-up
-
-# Rollback migrations
-POSTGRES_PASSWORD=yourpassword make migrate-down
-
-# Check migration version
-POSTGRES_PASSWORD=yourpassword make migrate-version
-```
 
 ## Architecture
 
@@ -110,32 +152,6 @@ internal/
   usecases/         # Application use cases
 pkg/                # Shared packages
   config/           # Configuration management
-migrations/         # Database migration files
-```
-
-## Testing
-
-### Unit Tests
-
-```bash
-# Run all tests
-go test -v ./...
-
-# Run specific package tests
-go test -v ./internal/domain/entities
-```
-
-### Integration Tests
-
-PostgreSQL integration tests require the root PostgreSQL service to be running:
-
-```bash
-# From project root, start PostgreSQL service
-cd ../../
-docker-compose up -d postgres
-
-# From go-soc-consumer directory, run integration tests
-POSTGRES_PASSWORD=yourpassword make test-postgres
 ```
 
 ## MQTT Message Format
@@ -181,4 +197,4 @@ docker-compose up -d postgres pgbouncer nats
 
 ## License
 
-This project is part of the IoT Smart Irrigation system.
+This project is part of the IoT Smart Irrigation system and is licensed under the Apache License 2.0. See the LICENSE file for details.

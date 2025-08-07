@@ -3,7 +3,6 @@ package devicehealth
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -15,19 +14,13 @@ import (
 
 // HealthCheckConfig holds configuration for the health check use case
 type HealthCheckConfig struct {
-	CooldownPeriod      time.Duration
-	DeduplicationWindow time.Duration
-	CleanupInterval     time.Duration
-	MaxConcurrent       int
+	MaxConcurrent int
 }
 
 // DefaultHealthCheckConfig returns default configuration
 func DefaultHealthCheckConfig() *HealthCheckConfig {
 	return &HealthCheckConfig{
-		CooldownPeriod:      2 * time.Minute,
-		DeduplicationWindow: 5 * time.Minute,
-		CleanupInterval:     10 * time.Minute,
-		MaxConcurrent:       10,
+		MaxConcurrent: 10,
 	}
 }
 
@@ -35,12 +28,6 @@ func DefaultHealthCheckConfig() *HealthCheckConfig {
 type DeviceHealthUseCase interface {
 	// ProcessDeviceDetectedEvent processes a device detected event and performs health check
 	ProcessDeviceDetectedEvent(ctx context.Context, event *entities.DeviceDetectedEvent) error
-
-	// StartCleanup starts periodic cleanup of internal state
-	StartCleanup(ctx context.Context)
-
-	// StopCleanup stops the cleanup process
-	StopCleanup()
 }
 
 // useCaseImpl implements the DeviceHealthUseCase interface
@@ -50,9 +37,6 @@ type useCaseImpl struct {
 	config        *HealthCheckConfig
 	logger        *logger.IoTLogger
 	semaphore     chan struct{} // For limiting concurrent health checks
-	cleanupTicker *time.Ticker
-	cleanupDone   chan struct{}
-	cleanupOnce   sync.Once
 }
 
 // NewDeviceHealthUseCase creates a new device health use case
@@ -81,7 +65,6 @@ func NewDeviceHealthUseCase(
 		config:        config,
 		logger:        iotLogger,
 		semaphore:     make(chan struct{}, config.MaxConcurrent),
-		cleanupDone:   make(chan struct{}),
 	}
 }
 
@@ -208,50 +191,4 @@ func (uc *useCaseImpl) updateDeviceStatus(ctx context.Context, macAddress string
 	)
 
 	return nil
-}
-
-// StartCleanup starts periodic cleanup of internal state
-func (uc *useCaseImpl) StartCleanup(ctx context.Context) {
-	uc.cleanupOnce.Do(func() {
-		uc.cleanupTicker = time.NewTicker(uc.config.CleanupInterval)
-
-		go func() {
-			defer uc.cleanupTicker.Stop()
-
-			for {
-				select {
-				case <-uc.cleanupTicker.C:
-					uc.performCleanup()
-				case <-uc.cleanupDone:
-					return
-				case <-ctx.Done():
-					return
-				}
-			}
-		}()
-
-		uc.logger.LogApplicationEvent("health_check_cleanup_started", "device_health_usecase",
-			zap.Duration("cleanup_interval", uc.config.CleanupInterval),
-		)
-	})
-}
-
-// StopCleanup stops the cleanup process
-func (uc *useCaseImpl) StopCleanup() {
-	close(uc.cleanupDone)
-	if uc.cleanupTicker != nil {
-		uc.cleanupTicker.Stop()
-	}
-	uc.logger.LogApplicationEvent("health_check_cleanup_stopped", "device_health_usecase")
-}
-
-// performCleanup cleans up internal state to prevent memory leaks
-func (uc *useCaseImpl) performCleanup() {
-	uc.logger.Debug("health_check_cleanup_performing",
-		zap.String("component", "device_health_usecase"),
-	)
-
-	uc.logger.Debug("health_check_cleanup_completed",
-		zap.String("component", "device_health_usecase"),
-	)
 }
