@@ -7,7 +7,6 @@ package mocks
 import (
 	"context"
 
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -39,24 +38,22 @@ func (_m *MockDeviceHealthChecker) EXPECT() *MockDeviceHealthChecker_Expecter {
 }
 
 // CheckHealth provides a mock function for the type MockDeviceHealthChecker
-func (_mock *MockDeviceHealthChecker) CheckHealth(ctx context.Context, ipAddress string) (*ports.HealthCheckResult, error) {
+func (_mock *MockDeviceHealthChecker) CheckHealth(ctx context.Context, ipAddress string) (bool, error) {
 	ret := _mock.Called(ctx, ipAddress)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CheckHealth")
 	}
 
-	var r0 *ports.HealthCheckResult
+	var r0 bool
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (*ports.HealthCheckResult, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (bool, error)); ok {
 		return returnFunc(ctx, ipAddress)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) *ports.HealthCheckResult); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) bool); ok {
 		r0 = returnFunc(ctx, ipAddress)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ports.HealthCheckResult)
-		}
+		r0 = ret.Get(0).(bool)
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
 		r1 = returnFunc(ctx, ipAddress)
@@ -96,12 +93,12 @@ func (_c *MockDeviceHealthChecker_CheckHealth_Call) Run(run func(ctx context.Con
 	return _c
 }
 
-func (_c *MockDeviceHealthChecker_CheckHealth_Call) Return(healthCheckResult *ports.HealthCheckResult, err error) *MockDeviceHealthChecker_CheckHealth_Call {
-	_c.Call.Return(healthCheckResult, err)
+func (_c *MockDeviceHealthChecker_CheckHealth_Call) Return(isAlive bool, err error) *MockDeviceHealthChecker_CheckHealth_Call {
+	_c.Call.Return(isAlive, err)
 	return _c
 }
 
-func (_c *MockDeviceHealthChecker_CheckHealth_Call) RunAndReturn(run func(ctx context.Context, ipAddress string) (*ports.HealthCheckResult, error)) *MockDeviceHealthChecker_CheckHealth_Call {
+func (_c *MockDeviceHealthChecker_CheckHealth_Call) RunAndReturn(run func(ctx context.Context, ipAddress string) (bool, error)) *MockDeviceHealthChecker_CheckHealth_Call {
 	_c.Call.Return(run)
 	return _c
 }

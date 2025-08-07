@@ -131,9 +131,9 @@ func (uc *useCaseImpl) performHealthCheck(ctx context.Context, event *entities.D
 
 	// Perform the health check
 	start := time.Now()
-	result, err := uc.healthChecker.CheckHealth(ctx, event.IPAddress)
+	isAlive, err := uc.healthChecker.CheckHealth(ctx, event.IPAddress)
 	healthCheckDuration := time.Since(start)
-	
+
 	if err != nil {
 		uc.logger.LogDeviceHealthCheck(event.MACAddress, event.IPAddress, false, healthCheckDuration, err)
 		uc.logger.Error("health_check_error",
@@ -145,12 +145,11 @@ func (uc *useCaseImpl) performHealthCheck(ctx context.Context, event *entities.D
 		)
 		// Continue to update device status even if health check failed
 	} else {
-		isAlive := result != nil && result.Success
 		uc.logger.LogDeviceHealthCheck(event.MACAddress, event.IPAddress, isAlive, healthCheckDuration, nil)
 	}
 
 	// Update device status based on health check result
-	if err := uc.updateDeviceStatus(ctx, event.MACAddress, result); err != nil {
+	if err := uc.updateDeviceStatus(ctx, event.MACAddress, isAlive); err != nil {
 		uc.logger.Error("device_status_update_failed",
 			zap.Error(err),
 			zap.String("mac_address", event.MACAddress),
@@ -160,7 +159,7 @@ func (uc *useCaseImpl) performHealthCheck(ctx context.Context, event *entities.D
 }
 
 // updateDeviceStatus updates the device status based on health check results
-func (uc *useCaseImpl) updateDeviceStatus(ctx context.Context, macAddress string, result *ports.HealthCheckResult) error {
+func (uc *useCaseImpl) updateDeviceStatus(ctx context.Context, macAddress string, isAlive bool) error {
 	// Retrieve the device from repository
 	device, err := uc.deviceRepo.FindByMACAddress(ctx, macAddress)
 	if err != nil {
@@ -173,29 +172,19 @@ func (uc *useCaseImpl) updateDeviceStatus(ctx context.Context, macAddress string
 
 	// Determine new status based on health check result
 	var newStatus string
-	if result != nil && result.Success {
+	if isAlive {
 		newStatus = "online"
 		uc.logger.Info("device_health_check_succeeded",
 			zap.String("mac_address", macAddress),
-			zap.String("ip_address", result.IPAddress),
-			zap.Int("status_code", result.StatusCode),
-			zap.Int("attempts", result.Attempts),
-			zap.Duration("duration", result.Duration),
-			zap.String("response_body", result.ResponseBody),
+			zap.String("ip_address", device.GetIPAddress()),
 			zap.String("component", "device_health_usecase"),
 		)
-
-		// Print the /whoami response to console as required
-		fmt.Printf("Device %s (/whoami response): %s\n", macAddress, result.ResponseBody)
 	} else {
 		newStatus = "offline"
 		errorMsg := "unknown error"
 		attempts := 0
-		if result != nil {
-			if result.Error != "" {
-				errorMsg = result.Error
-			}
-			attempts = result.Attempts
+		if err != nil {
+			attempts = 1
 		}
 		uc.logger.Warn("device_health_check_failed",
 			zap.String("mac_address", macAddress),

@@ -129,8 +129,10 @@ func TestPingHandler_Ping_ContextHandling(t *testing.T) {
 		handler := NewPingHandler(mockUseCase)
 
 		// Create request with custom context
+		type contextKey string
+		const testKey contextKey = "test-key"
 		req := httptest.NewRequest(http.MethodGet, "/ping", nil)
-		ctx := context.WithValue(req.Context(), "test-key", "test-value")
+		ctx := context.WithValue(req.Context(), testKey, "test-value")
 		req = req.WithContext(ctx)
 
 		w := httptest.NewRecorder()

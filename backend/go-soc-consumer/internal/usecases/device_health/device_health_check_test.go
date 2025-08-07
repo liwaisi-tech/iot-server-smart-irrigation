@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/entities"
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/mocks"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
@@ -85,7 +84,7 @@ func TestProcessDeviceDetectedEvent_ValidEvent(t *testing.T) {
 
 	// Add mock expectations for the goroutine that will be launched
 	device, _ := entities.NewDevice("AA:BB:CC:DD:EE:FF", "Test Device", "192.168.1.100", "Test Location")
-	checker.On("CheckHealth", mock.Anything, "192.168.1.100").Return(&ports.HealthCheckResult{Success: true}, nil).Maybe()
+	checker.On("CheckHealth", mock.Anything, "192.168.1.100").Return(true, nil).Maybe()
 	repo.On("FindByMACAddress", mock.Anything, "AA:BB:CC:DD:EE:FF").Return(device, nil).Maybe()
 	repo.On("Update", mock.Anything, mock.AnythingOfType("*entities.Device")).Return(nil).Maybe()
 
@@ -140,22 +139,11 @@ func TestUpdateDeviceStatus_OnlineTransition(t *testing.T) {
 	device, err := entities.NewDevice("AA:BB:CC:DD:EE:FF", "Test Device", "192.168.1.100", "Test Location")
 	require.NoError(t, err)
 
-	// Mock successful health check result
-	result := &ports.HealthCheckResult{
-		Success:      true,
-		StatusCode:   200,
-		ResponseBody: "Device OK",
-		Duration:     100 * time.Millisecond,
-		Attempts:     1,
-		IPAddress:    "192.168.1.100",
-		CheckedAt:    time.Now(),
-	}
-
 	// Set up repository mocks
 	repo.On("FindByMACAddress", mock.Anything, "AA:BB:CC:DD:EE:FF").Return(device, nil)
 	repo.On("Update", mock.Anything, mock.AnythingOfType("*entities.Device")).Return(nil)
 
-	err = impl.updateDeviceStatus(context.Background(), "AA:BB:CC:DD:EE:FF", result)
+	err = impl.updateDeviceStatus(context.Background(), "AA:BB:CC:DD:EE:FF", true)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "online", device.GetStatus())
@@ -173,20 +161,11 @@ func TestUpdateDeviceStatus_OfflineTransition(t *testing.T) {
 	device, err := entities.NewDevice("AA:BB:CC:DD:EE:FF", "Test Device", "192.168.1.100", "Test Location")
 	require.NoError(t, err)
 
-	// Mock failed health check result
-	result := &ports.HealthCheckResult{
-		Success:   false,
-		Attempts:  3,
-		Error:     "Connection timeout",
-		IPAddress: "192.168.1.100",
-		CheckedAt: time.Now(),
-	}
-
 	// Set up repository mocks
 	repo.On("FindByMACAddress", mock.Anything, "AA:BB:CC:DD:EE:FF").Return(device, nil)
 	repo.On("Update", mock.Anything, mock.AnythingOfType("*entities.Device")).Return(nil)
 
-	err = impl.updateDeviceStatus(context.Background(), "AA:BB:CC:DD:EE:FF", result)
+	err = impl.updateDeviceStatus(context.Background(), "AA:BB:CC:DD:EE:FF", false)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "offline", device.GetStatus())
@@ -208,7 +187,7 @@ func TestUpdateDeviceStatus_NilResult(t *testing.T) {
 	repo.On("FindByMACAddress", mock.Anything, "AA:BB:CC:DD:EE:FF").Return(device, nil)
 	repo.On("Update", mock.Anything, mock.AnythingOfType("*entities.Device")).Return(nil)
 
-	err = impl.updateDeviceStatus(context.Background(), "AA:BB:CC:DD:EE:FF", nil)
+	err = impl.updateDeviceStatus(context.Background(), "AA:BB:CC:DD:EE:FF", false)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "offline", device.GetStatus()) // Should default to offline
@@ -221,13 +200,10 @@ func TestUpdateDeviceStatus_DeviceNotFound(t *testing.T) {
 	checker := &mocks.MockDeviceHealthChecker{}
 	uc := NewDeviceHealthUseCase(repo, checker, nil, nil)
 	impl := uc.(*useCaseImpl)
-
-	result := &ports.HealthCheckResult{Success: true}
-
 	// Mock repository returning nil device
 	repo.On("FindByMACAddress", mock.Anything, "AA:BB:CC:DD:EE:FF").Return(nil, nil)
 
-	err := impl.updateDeviceStatus(context.Background(), "AA:BB:CC:DD:EE:FF", result)
+	err := impl.updateDeviceStatus(context.Background(), "AA:BB:CC:DD:EE:FF", false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "device not found")
@@ -241,12 +217,10 @@ func TestUpdateDeviceStatus_RepositoryFindError(t *testing.T) {
 	uc := NewDeviceHealthUseCase(repo, checker, nil, nil)
 	impl := uc.(*useCaseImpl)
 
-	result := &ports.HealthCheckResult{Success: true}
-
 	// Mock repository returning error
 	repo.On("FindByMACAddress", mock.Anything, "AA:BB:CC:DD:EE:FF").Return(nil, assert.AnError)
 
-	err := impl.updateDeviceStatus(context.Background(), "AA:BB:CC:DD:EE:FF", result)
+	err := impl.updateDeviceStatus(context.Background(), "AA:BB:CC:DD:EE:FF", false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to find device")
@@ -264,13 +238,11 @@ func TestUpdateDeviceStatus_RepositoryUpdateError(t *testing.T) {
 	device, err := entities.NewDevice("AA:BB:CC:DD:EE:FF", "Test Device", "192.168.1.100", "Test Location")
 	require.NoError(t, err)
 
-	result := &ports.HealthCheckResult{Success: true}
-
 	// Set up repository mocks - Update returns error
 	repo.On("FindByMACAddress", mock.Anything, "AA:BB:CC:DD:EE:FF").Return(device, nil)
 	repo.On("Update", mock.Anything, mock.AnythingOfType("*entities.Device")).Return(assert.AnError)
 
-	err = impl.updateDeviceStatus(context.Background(), "AA:BB:CC:DD:EE:FF", result)
+	err = impl.updateDeviceStatus(context.Background(), "AA:BB:CC:DD:EE:FF", false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to save device status update")
@@ -300,16 +272,7 @@ func TestPerformHealthCheck_Success(t *testing.T) {
 	device, err := entities.NewDevice("AA:BB:CC:DD:EE:FF", "Test Device", "192.168.1.100", "Test Location")
 	require.NoError(t, err)
 
-	// Mock successful health check
-	result := &ports.HealthCheckResult{
-		Success:      true,
-		StatusCode:   200,
-		ResponseBody: "Device OK",
-		IPAddress:    "192.168.1.100",
-		CheckedAt:    time.Now(),
-	}
-
-	checker.On("CheckHealth", mock.Anything, "192.168.1.100").Return(result, nil)
+	checker.On("CheckHealth", mock.Anything, "192.168.1.100").Return(true, nil)
 	repo.On("FindByMACAddress", mock.Anything, "AA:BB:CC:DD:EE:FF").Return(device, nil)
 	repo.On("Update", mock.Anything, mock.AnythingOfType("*entities.Device")).Return(nil)
 
@@ -336,7 +299,7 @@ func TestPerformHealthCheck_Failure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Mock failed health check
-	checker.On("CheckHealth", mock.Anything, "192.168.1.100").Return(nil, assert.AnError)
+	checker.On("CheckHealth", mock.Anything, "192.168.1.100").Return(false, nil)
 	repo.On("FindByMACAddress", mock.Anything, "AA:BB:CC:DD:EE:FF").Return(device, nil)
 	repo.On("Update", mock.Anything, mock.AnythingOfType("*entities.Device")).Return(nil)
 

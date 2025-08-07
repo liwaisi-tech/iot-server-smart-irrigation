@@ -1,4 +1,4 @@
-.PHONY: help build run test test-postgres clean migrate-up migrate-down
+.PHONY: help build run test test-postgres clean migrate-up migrate-down check-linter
 
 # Default target
 help:
@@ -6,6 +6,7 @@ help:
 	@echo "  build           - Build the application binary"
 	@echo "  run             - Run the application locally"
 	@echo "  test            - Run unit tests"
+	@echo "  check-linter    - Run static code analysis"
 	@echo "  clean           - Clean build artifacts"
 	@echo "  dev-info        - Show development environment setup instructions"
 
@@ -20,6 +21,11 @@ run:
 # Run unit tests
 test:
 	go test -v -race -coverprofile=coverage.out ./...
+
+# Run linter
+check-linter:
+	@echo "Running golangci-lint..."
+	golangci-lint run ./...
 
 # Clean build artifacts
 clean:

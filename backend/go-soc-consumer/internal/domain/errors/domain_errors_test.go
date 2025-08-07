@@ -128,8 +128,8 @@ func TestDomainError_WithDetails_SingleDetail(t *testing.T) {
 func TestDomainError_WithDetails_MultipleDetails(t *testing.T) {
 	err := NewDomainError("VALIDATION_ERROR", "Multiple validation failures")
 
-	// Add multiple details
-	err.WithDetails("field1", "mac_address").
+	// Add multiple details (using blank identifiers since we don't need the return values in tests)
+	_ = err.WithDetails("field1", "mac_address").
 		WithDetails("field2", "device_name").
 		WithDetails("field3", "ip_address")
 
@@ -152,14 +152,14 @@ func TestDomainError_WithDetails_MultipleDetails(t *testing.T) {
 func TestDomainError_WithDetails_OverwriteDetail(t *testing.T) {
 	err := NewDomainError("TEST_ERROR", "Test error")
 
-	// Add initial detail
-	err.WithDetails("field", "initial_value")
+	// Add initial detail (using blank identifier since we don't need the return value in tests)
+	_ = err.WithDetails("field", "initial_value")
 
 	// Verify initial detail
 	assert.Equal(t, "initial_value", err.Details["field"], "WithDetails() initial value not set correctly")
 
-	// Overwrite the detail
-	err.WithDetails("field", "updated_value")
+	// Overwrite the detail (using blank identifier since we don't need the return value in tests)
+	_ = err.WithDetails("field", "updated_value")
 
 	// Verify detail was overwritten
 	assert.Len(t, err.Details, 1, "WithDetails() should still have 1 detail after overwrite")
@@ -169,8 +169,8 @@ func TestDomainError_WithDetails_OverwriteDetail(t *testing.T) {
 func TestDomainError_WithDetails_DifferentTypes(t *testing.T) {
 	err := NewDomainError("TEST_ERROR", "Test with different types")
 
-	// Add details with different types
-	err.WithDetails("string_field", "string_value").
+	// Add details with different types (using blank identifier since we don't need the return values in tests)
+	_ = err.WithDetails("string_field", "string_value").
 		WithDetails("int_field", 42).
 		WithDetails("bool_field", true).
 		WithDetails("float_field", 3.14).
@@ -271,10 +271,10 @@ func TestPredefinedErrors_Independence(t *testing.T) {
 	originalNotFoundCount := len(ErrNotFound.Details)
 	originalInvalidInputCount := len(ErrInvalidInput.Details)
 
-	// Add details to different predefined errors
-	ErrInternalServer.WithDetails("test_internal", "value1")
-	ErrNotFound.WithDetails("test_not_found", "value2")
-	ErrInvalidInput.WithDetails("test_invalid", "value3")
+	// Add details to different predefined errors (using blank identifiers since we don't need the return values in tests)
+	_ = ErrInternalServer.WithDetails("test_internal", "value1")
+	_ = ErrNotFound.WithDetails("test_not_found", "value2")
+	_ = ErrInvalidInput.WithDetails("test_invalid", "value3")
 
 	// Verify they don't affect each other
 	assert.Equal(t, originalInternalCount+1, len(ErrInternalServer.Details), "ErrInternalServer details count incorrect")

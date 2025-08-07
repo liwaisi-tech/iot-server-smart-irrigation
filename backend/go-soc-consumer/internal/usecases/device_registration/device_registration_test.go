@@ -487,8 +487,10 @@ func TestUseCase_RegisterDevice_EdgeCases(t *testing.T) {
 
 		// This should panic or be handled gracefully depending on implementation
 		// Since the current implementation doesn't check for nil, this is more of a documentation test
+		// We're intentionally not checking the error return value here to test the panic behavior
+		//nolint:errcheck // This is an intentional test of panic behavior with nil message
 		assert.Panics(t, func() {
-			useCase.RegisterDevice(context.Background(), nil)
+			_ = useCase.RegisterDevice(context.Background(), nil) // This should panic
 		})
 	})
 
@@ -553,7 +555,7 @@ func BenchmarkUseCase_RegisterDevice_NewDevice(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		useCase.RegisterDevice(context.Background(), message)
+		_ = useCase.RegisterDevice(context.Background(), message) // Ignore error in benchmark
 	}
 }
 
@@ -592,6 +594,6 @@ func BenchmarkUseCase_RegisterDevice_ExistingDevice(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		useCase.RegisterDevice(context.Background(), message)
+		_ = useCase.RegisterDevice(context.Background(), message) // Ignore error in benchmark
 	}
 }
