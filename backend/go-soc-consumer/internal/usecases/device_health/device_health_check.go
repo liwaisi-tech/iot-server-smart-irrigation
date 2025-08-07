@@ -183,9 +183,6 @@ func (uc *useCaseImpl) updateDeviceStatus(ctx context.Context, macAddress string
 		newStatus = "offline"
 		errorMsg := "unknown error"
 		attempts := 0
-		if err != nil {
-			attempts = 1
-		}
 		uc.logger.Warn("device_health_check_failed",
 			zap.String("mac_address", macAddress),
 			zap.String("error", errorMsg),
