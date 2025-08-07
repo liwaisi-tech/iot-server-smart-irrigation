@@ -418,6 +418,11 @@ func TestDeviceRegistrationHandler_RealUseCaseIntegration(t *testing.T) {
 			device.IPAddress == "192.168.1.250" &&
 			device.Status == "registered"
 	})).Return(nil).Once()
+	
+	// Add missing IsConnected expectation for EventPublisher
+	mockPublisher.EXPECT().IsConnected().Return(true).Maybe()
+	// Add missing Publish expectation for EventPublisher
+	mockPublisher.EXPECT().Publish(mock.Anything, "liwaisi.iot.smart-irrigation.device.detected", mock.Anything).Return(nil).Maybe()
 
 	payloadBytes, err := json.Marshal(payload)
 	require.NoError(t, err, "Failed to marshal payload")

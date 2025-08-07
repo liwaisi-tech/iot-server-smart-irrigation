@@ -76,6 +76,11 @@ func (uc *useCaseImpl) updateExistingDevice(ctx context.Context, existingDevice 
 	existingDevice.LocationDescription = message.LocationDescription
 	existingDevice.LastSeen = message.ReceivedAt
 
+	// Update status to online when device registers again
+	if err := existingDevice.UpdateStatus("online"); err != nil {
+		return fmt.Errorf("failed to update device status: %w", err)
+	}
+
 	// Validate updated device
 	if err := existingDevice.Validate(); err != nil {
 		return fmt.Errorf("updated device validation failed: %w", err)
