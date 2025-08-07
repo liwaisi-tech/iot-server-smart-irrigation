@@ -104,7 +104,7 @@ func (g *GormPostgresDB) Close() error {
 
 // AutoMigrate runs GORM auto-migrations for all registered models
 func (g *GormPostgresDB) AutoMigrate() error {
-	// Simple GORM AutoMigrate - let GORM handle everything
+	// Simple GORM AutoMigrate
 	return g.db.AutoMigrate(&models.DeviceModel{})
 }
 

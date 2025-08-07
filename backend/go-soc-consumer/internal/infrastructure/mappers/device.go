@@ -79,38 +79,3 @@ func (m *DeviceMapper) FromModelSlice(models []*models.DeviceModel) []*entities.
 	}
 	return entities
 }
-
-// UpdateModelFromEntity updates an existing GORM model with data from a domain entity
-// This is useful for update operations where you want to preserve certain fields
-func (m *DeviceMapper) UpdateModelFromEntity(model *models.DeviceModel, device *entities.Device) {
-	if model == nil || device == nil {
-		return
-	}
-
-	model.MACAddress = device.MACAddress
-	model.DeviceName = device.DeviceName
-	model.IPAddress = device.IPAddress
-	model.LocationDescription = device.LocationDescription
-	model.RegisteredAt = device.RegisteredAt
-	model.LastSeen = device.LastSeen
-	model.Status = device.Status
-	// Note: CreatedAt, UpdatedAt, DeletedAt are managed by GORM
-}
-
-// ToModelForUpdate converts a domain entity to a GORM model specifically for update operations
-// This preserves the original creation timestamp and other audit fields
-func (m *DeviceMapper) ToModelForUpdate(device *entities.Device, originalModel *models.DeviceModel) *models.DeviceModel {
-	if device == nil {
-		return nil
-	}
-
-	model := m.ToModel(device)
-	if originalModel != nil {
-		// Preserve audit fields from the original model
-		model.CreatedAt = originalModel.CreatedAt
-		model.UpdatedAt = time.Now() // This will be updated by GORM anyway
-		model.DeletedAt = originalModel.DeletedAt
-	}
-	
-	return model
-}

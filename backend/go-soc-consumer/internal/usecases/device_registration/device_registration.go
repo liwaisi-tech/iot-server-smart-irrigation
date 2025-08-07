@@ -28,7 +28,7 @@ func NewUseCase(deviceRepo ports.DeviceRepository) *UseCase {
 
 // RegisterDevice processes a device registration message
 func (uc *UseCase) RegisterDevice(ctx context.Context, message *entities.DeviceRegistrationMessage) error {
-	log.Printf("Processing device registration for MAC: %s, Name: %s", 
+	log.Printf("Processing device registration for MAC: %s, Name: %s",
 		message.MACAddress, message.DeviceName)
 
 	// Check if device already exists
@@ -68,10 +68,6 @@ func (uc *UseCase) updateExistingDevice(ctx context.Context, existingDevice *ent
 	existingDevice.IPAddress = message.IPAddress
 	existingDevice.LocationDescription = message.LocationDescription
 	existingDevice.LastSeen = message.ReceivedAt
-
-	// Mark device as online since it just registered
-	existingDevice.MarkOnline()
-
 	// Validate updated device
 	if err := existingDevice.Validate(); err != nil {
 		return fmt.Errorf("updated device validation failed: %w", err)
