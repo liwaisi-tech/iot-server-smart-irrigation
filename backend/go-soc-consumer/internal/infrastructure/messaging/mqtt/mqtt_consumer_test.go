@@ -13,7 +13,16 @@ import (
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/mocks"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
+
+// createTestLogger creates a test logger for use in tests
+func createTestLogger(t *testing.T) *logger.IoTLogger {
+	testLogger, err := logger.NewDevelopmentLogger()
+	assert.NoError(t, err)
+	assert.NotNil(t, testLogger)
+	return testLogger
+}
 
 // MockMQTTClient is a mock implementation of the MQTT client interface
 // Note: We use manual mocks here since mqtt.Client is an external interface
@@ -127,7 +136,7 @@ func TestNewMQTTConsumer(t *testing.T) {
 		MaxReconnectInterval: 10 * time.Minute,
 	}
 
-	consumer := NewMQTTConsumer(config)
+	consumer := NewMQTTConsumer(config, createTestLogger(t))
 
 	assert.NotNil(t, consumer)
 	assert.Equal(t, config, consumer.config)
@@ -177,7 +186,7 @@ func TestMQTTConsumer_Stop(t *testing.T) {
 				ClientID:  "test-client",
 			}
 
-			consumer := NewMQTTConsumer(config)
+			consumer := NewMQTTConsumer(config, createTestLogger(t))
 
 			if tt.setupClient != nil {
 				mockClient := tt.setupClient(t)
@@ -271,7 +280,7 @@ func TestMQTTConsumer_Subscribe(t *testing.T) {
 				ClientID:  "test-client",
 			}
 
-			consumer := NewMQTTConsumer(config)
+			consumer := NewMQTTConsumer(config, createTestLogger(t))
 			mockClient, _ := tt.setup(t)
 			consumer.client = mockClient
 
@@ -352,7 +361,7 @@ func TestMQTTConsumer_Unsubscribe(t *testing.T) {
 				ClientID:  "test-client",
 			}
 
-			consumer := NewMQTTConsumer(config)
+			consumer := NewMQTTConsumer(config, createTestLogger(t))
 			mockClient, _ := tt.setup(t)
 			consumer.client = mockClient
 
@@ -411,7 +420,7 @@ func TestMQTTConsumer_IsConnected(t *testing.T) {
 				ClientID:  "test-client",
 			}
 
-			consumer := NewMQTTConsumer(config)
+			consumer := NewMQTTConsumer(config, createTestLogger(t))
 
 			if tt.setup != nil {
 				mockClient := tt.setup(t)
@@ -436,7 +445,7 @@ func TestMQTTConsumer_MessageHandling(t *testing.T) {
 			ClientID:  "test-client",
 		}
 
-		consumer := NewMQTTConsumer(config)
+		consumer := NewMQTTConsumer(config, createTestLogger(t))
 
 		// Create a test handler
 		var receivedTopic string
@@ -465,7 +474,7 @@ func TestMQTTConsumer_MessageHandling(t *testing.T) {
 			ClientID:  "test-client",
 		}
 
-		consumer := NewMQTTConsumer(config)
+		consumer := NewMQTTConsumer(config, createTestLogger(t))
 
 		// Create a handler that returns an error
 		testHandler := func(ctx context.Context, topic string, payload []byte) error {
@@ -692,7 +701,12 @@ func BenchmarkMQTTConsumer_MessageHandling(b *testing.B) {
 		ClientID:  "test-client",
 	}
 
-	consumer := NewMQTTConsumer(config)
+	// For benchmark, create a simple logger without test assertions
+	testLogger, err := logger.NewDevelopmentLogger()
+	if err != nil {
+		b.Fatal(err)
+	}
+	consumer := NewMQTTConsumer(config, testLogger)
 
 	// Simple handler for benchmarking
 	testHandler := func(ctx context.Context, topic string, payload []byte) error {

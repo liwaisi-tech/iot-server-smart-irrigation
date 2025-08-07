@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"go.uber.org/zap"
+
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/events"
 	messaginghandlers "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/messaging/mqtt/handlers"
 	natshandlers "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/messaging/nats/handlers"
@@ -52,8 +54,12 @@ func (a *Application) initializeHTTPServer() error {
 // startMessageConsumers starts all message consumers and subscribes to topics
 func (a *Application) startMessageConsumers(ctx context.Context) error {
 	// Start MQTT consumer
-	a.logger.Info("Starting MQTT consumer")
+	a.logger.LogApplicationEvent("mqtt_consumer_starting", "application")
 	if err := a.services.MQTTConsumer.Start(ctx); err != nil {
+		a.logger.Error("mqtt_consumer_start_failed",
+			zap.Error(err),
+			zap.String("component", "application"),
+		)
 		return fmt.Errorf("failed to start MQTT consumer: %w", err)
 	}
 
@@ -61,24 +67,42 @@ func (a *Application) startMessageConsumers(ctx context.Context) error {
 	deviceRegistrationHandler := messaginghandlers.NewDeviceRegistrationHandler(a.services.DeviceRegistrationUseCase)
 	deviceRegistrationTopic := "/liwaisi/iot/smart-irrigation/device/registration"
 	
-	a.logger.Info("Subscribing to device registration topic", "topic", deviceRegistrationTopic)
+	a.logger.LogApplicationEvent("mqtt_topic_subscribing", "application",
+		zap.String("topic", deviceRegistrationTopic),
+		zap.String("handler", "device_registration"),
+	)
 	if err := a.services.MQTTConsumer.Subscribe(ctx, deviceRegistrationTopic, deviceRegistrationHandler.HandleMessage); err != nil {
+		a.logger.Error("mqtt_topic_subscription_failed",
+			zap.Error(err),
+			zap.String("topic", deviceRegistrationTopic),
+			zap.String("component", "application"),
+		)
 		return fmt.Errorf("failed to subscribe to device registration topic: %w", err)
 	}
 
 	// Start NATS subscriber if available
 	if a.services.NATSSubscriber != nil {
-		a.logger.Info("Starting NATS subscriber")
+		a.logger.LogApplicationEvent("nats_subscriber_starting", "application")
 		if err := a.services.NATSSubscriber.Start(ctx); err != nil {
-			a.logger.Error("Failed to start NATS subscriber", "error", err)
+			a.logger.Error("nats_subscriber_start_failed",
+				zap.Error(err),
+				zap.String("component", "application"),
+			)
 		} else {
 			// Subscribe to device detected events
 			deviceHealthHandler := natshandlers.NewDeviceHealthHandler(a.services.DeviceHealthUseCase)
 			deviceDetectedSubject := events.DeviceDetectedSubject
 			
-			a.logger.Info("Subscribing to device detected events", "subject", deviceDetectedSubject)
+			a.logger.LogApplicationEvent("nats_subject_subscribing", "application",
+				zap.String("subject", deviceDetectedSubject),
+				zap.String("handler", "device_health"),
+			)
 			if err := a.services.NATSSubscriber.Subscribe(ctx, deviceDetectedSubject, deviceHealthHandler.HandleMessage); err != nil {
-				a.logger.Error("Failed to subscribe to device detected events", "error", err)
+				a.logger.Error("nats_subject_subscription_failed",
+					zap.Error(err),
+					zap.String("subject", deviceDetectedSubject),
+					zap.String("component", "application"),
+				)
 			}
 		}
 	}
@@ -89,13 +113,20 @@ func (a *Application) startMessageConsumers(ctx context.Context) error {
 // startHTTPServer starts the HTTP server in a goroutine
 func (a *Application) startHTTPServer() error {
 	go func() {
-		a.logger.Info("Starting HTTP server", 
-			"address", a.server.Addr)
-		a.logger.Info("Ping endpoint available", 
-			"url", fmt.Sprintf("http://%s/ping", a.server.Addr))
+		a.logger.LogApplicationEvent("http_server_starting", "application",
+			zap.String("address", a.server.Addr),
+		)
+		a.logger.Info("http_server_endpoints_available",
+			zap.String("ping_url", fmt.Sprintf("http://%s/ping", a.server.Addr)),
+			zap.String("component", "application"),
+		)
 
 		if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			a.logger.Error("HTTP server failed to start", "error", err)
+			a.logger.Error("http_server_start_failed",
+				zap.Error(err),
+				zap.String("address", a.server.Addr),
+				zap.String("component", "application"),
+			)
 		}
 	}()
 
@@ -106,7 +137,7 @@ func (a *Application) startHTTPServer() error {
 func (a *Application) startBackgroundServices(ctx context.Context) error {
 	// Start health monitoring if NATS subscriber is available
 	if a.services.NATSSubscriber != nil && a.services.DeviceHealthUseCase != nil {
-		a.logger.Info("Starting background health monitoring")
+		a.logger.LogApplicationEvent("background_health_monitoring_starting", "application")
 		a.services.DeviceHealthUseCase.StartCleanup(ctx)
 	}
 
@@ -115,18 +146,24 @@ func (a *Application) startBackgroundServices(ctx context.Context) error {
 
 // stopMessageConsumers stops all message consumers
 func (a *Application) stopMessageConsumers(ctx context.Context) error {
-	a.logger.Info("Stopping message consumers")
+	a.logger.LogApplicationEvent("message_consumers_stopping", "application")
 
 	// Stop NATS subscriber
 	if a.services.NATSSubscriber != nil {
 		if err := a.services.NATSSubscriber.Stop(ctx); err != nil {
-			a.logger.Error("Error stopping NATS subscriber", "error", err)
+			a.logger.Error("nats_subscriber_stop_error",
+				zap.Error(err),
+				zap.String("component", "application"),
+			)
 		}
 	}
 
 	// Stop MQTT consumer
 	if err := a.services.MQTTConsumer.Stop(ctx); err != nil {
-		a.logger.Error("Error stopping MQTT consumer", "error", err)
+		a.logger.Error("mqtt_consumer_stop_error",
+			zap.Error(err),
+			zap.String("component", "application"),
+		)
 		return err
 	}
 
@@ -135,10 +172,13 @@ func (a *Application) stopMessageConsumers(ctx context.Context) error {
 
 // stopHTTPServer gracefully shuts down the HTTP server
 func (a *Application) stopHTTPServer(ctx context.Context) error {
-	a.logger.Info("Stopping HTTP server")
+	a.logger.LogApplicationEvent("http_server_stopping", "application")
 	
 	if err := a.server.Shutdown(ctx); err != nil {
-		a.logger.Error("HTTP server forced to shutdown", "error", err)
+		a.logger.Error("http_server_shutdown_error",
+			zap.Error(err),
+			zap.String("component", "application"),
+		)
 		return err
 	}
 
@@ -147,7 +187,7 @@ func (a *Application) stopHTTPServer(ctx context.Context) error {
 
 // stopBackgroundServices stops all background services
 func (a *Application) stopBackgroundServices() {
-	a.logger.Info("Stopping background services")
+	a.logger.LogApplicationEvent("background_services_stopping", "application")
 	
 	// Stop health check cleanup
 	if a.services.DeviceHealthUseCase != nil {

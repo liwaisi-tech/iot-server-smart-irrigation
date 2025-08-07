@@ -13,13 +13,17 @@ import (
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/entities"
 	deviceregistration "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/device_registration"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/mocks"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
 func TestNewDeviceRegistrationHandler(t *testing.T) {
 	// Create a real use case with a mock repository for testing
 	mockRepo := mocks.NewMockDeviceRepository(t)
 	mockPublisher := mocks.NewMockEventPublisher(t)
-	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo, mockPublisher)
+	testLogger, err := logger.NewDevelopmentLogger()
+	assert.NoError(t, err)
+	assert.NotNil(t, testLogger)
+	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo, mockPublisher, testLogger)
 	handler := NewDeviceRegistrationHandler(realUseCase)
 
 	assert.NotNil(t, handler, "NewDeviceRegistrationHandler() returned nil")
@@ -399,7 +403,10 @@ func TestDeviceRegistrationHandler_RealUseCaseIntegration(t *testing.T) {
 	// This test uses a real use case with mock repository to test full integration
 	mockRepo := mocks.NewMockDeviceRepository(t)
 	mockPublisher := mocks.NewMockEventPublisher(t)
-	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo, mockPublisher)
+	testLogger, err := logger.NewDevelopmentLogger()
+	require.NoError(t, err)
+	require.NotNil(t, testLogger)
+	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo, mockPublisher, testLogger)
 	handler := NewDeviceRegistrationHandler(realUseCase)
 
 	payload := map[string]interface{}{
@@ -418,7 +425,7 @@ func TestDeviceRegistrationHandler_RealUseCaseIntegration(t *testing.T) {
 			device.IPAddress == "192.168.1.250" &&
 			device.Status == "registered"
 	})).Return(nil).Once()
-	
+
 	// Add missing IsConnected expectation for EventPublisher
 	mockPublisher.EXPECT().IsConnected().Return(true).Maybe()
 	// Add missing Publish expectation for EventPublisher

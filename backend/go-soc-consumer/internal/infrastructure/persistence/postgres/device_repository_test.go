@@ -11,6 +11,7 @@ import (
 	domainerrors "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/errors"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/database"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/mocks/stubs"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 )
@@ -24,10 +25,23 @@ func setupTestRepository(t *testing.T) (*DeviceRepository, sqlmock.Sqlmock) {
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB).(*DeviceRepository)
+	// Create test logger
+	testLogger, err := logger.NewDevelopmentLogger()
+	assert.NoError(t, err)
+	assert.NotNil(t, testLogger)
+
+	deviceRepository := NewDeviceRepository(postgresDB, testLogger).(*DeviceRepository)
 	assert.NotNil(t, deviceRepository)
 
 	return deviceRepository, sqkmockDB
+}
+
+// createTestLogger creates a test logger for use in tests
+func createTestLogger(t *testing.T) *logger.IoTLogger {
+	testLogger, err := logger.NewDevelopmentLogger()
+	assert.NoError(t, err)
+	assert.NotNil(t, testLogger)
+	return testLogger
 }
 
 func TestNewDeviceRepository(t *testing.T) {
@@ -38,7 +52,7 @@ func TestNewDeviceRepository(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB)
+	deviceRepository := NewDeviceRepository(postgresDB, createTestLogger(t))
 	assert.NotNil(t, deviceRepository)
 }
 
@@ -50,7 +64,7 @@ func TestSave(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB)
+	deviceRepository := NewDeviceRepository(postgresDB, createTestLogger(t))
 	assert.NotNil(t, deviceRepository)
 
 	deviceEntity, err := entities.NewDevice("AA:BB:CC:DD:EE:FF", "test_device", "127.0.0.1", "In the very test code")
@@ -110,7 +124,7 @@ func TestUpdate(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB)
+	deviceRepository := NewDeviceRepository(postgresDB, createTestLogger(t))
 	assert.NotNil(t, deviceRepository)
 
 	deviceEntity, err := entities.NewDevice("AA:BB:CC:DD:EE:FF", "updated_device", "127.0.0.2", "Updated location")
@@ -164,7 +178,7 @@ func TestFindByMACAddress(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB)
+	deviceRepository := NewDeviceRepository(postgresDB, createTestLogger(t))
 	assert.NotNil(t, deviceRepository)
 
 	macAddress := "AA:BB:CC:DD:EE:FF"
@@ -226,7 +240,7 @@ func TestExists(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB)
+	deviceRepository := NewDeviceRepository(postgresDB, createTestLogger(t))
 	assert.NotNil(t, deviceRepository)
 
 	macAddress := "AA:BB:CC:DD:EE:FF"
@@ -279,7 +293,7 @@ func TestList(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB)
+	deviceRepository := NewDeviceRepository(postgresDB, createTestLogger(t))
 	assert.NotNil(t, deviceRepository)
 
 	t.Run("should return error when offset is negative", func(t *testing.T) {
@@ -368,7 +382,7 @@ func TestDelete(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB)
+	deviceRepository := NewDeviceRepository(postgresDB, createTestLogger(t))
 	assert.NotNil(t, deviceRepository)
 
 	macAddress := "AA:BB:CC:DD:EE:FF"

@@ -105,7 +105,7 @@ func NewAppConfig() (*AppConfig, error) {
 		},
 		Logging: LoggingConfig{
 			Level:  getEnv("LOG_LEVEL", "info"),
-			Format: getEnv("LOG_FORMAT", "text"),
+			Format: getEnv("LOG_FORMAT", "json"),
 		},
 	}
 

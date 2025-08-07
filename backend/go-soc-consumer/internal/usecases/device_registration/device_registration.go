@@ -3,10 +3,13 @@ package deviceregistration
 import (
 	"context"
 	"fmt"
-	"log"
+	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/entities"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
 // DeviceRegistrationUseCase defines the interface for device registration use case
@@ -18,32 +21,76 @@ type DeviceRegistrationUseCase interface {
 type useCaseImpl struct {
 	deviceRepo     ports.DeviceRepository
 	eventPublisher ports.EventPublisher
+	logger         *logger.IoTLogger
 }
 
 // NewDeviceRegistrationUseCase creates a new device registration use case
-func NewDeviceRegistrationUseCase(deviceRepo ports.DeviceRepository, eventPublisher ports.EventPublisher) *useCaseImpl {
+func NewDeviceRegistrationUseCase(deviceRepo ports.DeviceRepository, eventPublisher ports.EventPublisher, logger *logger.IoTLogger) *useCaseImpl {
 	return &useCaseImpl{
 		deviceRepo:     deviceRepo,
 		eventPublisher: eventPublisher,
+		logger:         logger,
 	}
 }
 
 // RegisterDevice processes a device registration message
 func (uc *useCaseImpl) RegisterDevice(ctx context.Context, message *entities.DeviceRegistrationMessage) error {
-	log.Printf("Processing device registration for MAC: %s, Name: %s",
-		message.MACAddress, message.DeviceName)
+	start := time.Now()
+	
+	uc.logger.Info("device_registration_started",
+		zap.String("mac_address", message.MACAddress),
+		zap.String("device_name", message.DeviceName),
+		zap.String("ip_address", message.IPAddress),
+		zap.String("location", message.LocationDescription),
+		zap.String("component", "device_registration_usecase"),
+	)
 
 	// Check if device already exists
 	existingDevice, err := uc.deviceRepo.FindByMACAddress(ctx, message.MACAddress)
 	if err == nil && existingDevice != nil {
 		// Device exists, update it
-		log.Printf("Device already exists, updating: %s", message.MACAddress)
-		return uc.updateExistingDevice(ctx, existingDevice, message)
+		uc.logger.Debug("existing_device_found_for_update",
+			zap.String("mac_address", message.MACAddress),
+			zap.String("existing_name", existingDevice.GetDeviceName()),
+			zap.String("new_name", message.DeviceName),
+			zap.String("component", "device_registration_usecase"),
+		)
+		err := uc.updateExistingDevice(ctx, existingDevice, message)
+		processingDuration := time.Since(start)
+		
+		if err != nil {
+			uc.logger.Error("device_update_failed",
+				zap.Error(err),
+				zap.String("mac_address", message.MACAddress),
+				zap.Duration("processing_duration", processingDuration),
+				zap.String("component", "device_registration_usecase"),
+			)
+		} else {
+			uc.logger.LogDeviceRegistration(message.MACAddress, message.DeviceName, message.IPAddress, message.LocationDescription, true)
+		}
+		return err
 	}
 
 	// Device doesn't exist, create new one
-	log.Printf("Creating new device: %s", message.MACAddress)
-	return uc.createNewDevice(ctx, message)
+	uc.logger.Debug("creating_new_device",
+		zap.String("mac_address", message.MACAddress),
+		zap.String("device_name", message.DeviceName),
+		zap.String("component", "device_registration_usecase"),
+	)
+	err = uc.createNewDevice(ctx, message)
+	processingDuration := time.Since(start)
+	
+	if err != nil {
+		uc.logger.Error("device_creation_failed",
+			zap.Error(err),
+			zap.String("mac_address", message.MACAddress),
+			zap.Duration("processing_duration", processingDuration),
+			zap.String("component", "device_registration_usecase"),
+		)
+	} else {
+		uc.logger.LogDeviceRegistration(message.MACAddress, message.DeviceName, message.IPAddress, message.LocationDescription, false)
+	}
+	return err
 }
 
 // createNewDevice creates a new device from registration message
@@ -56,10 +103,21 @@ func (uc *useCaseImpl) createNewDevice(ctx context.Context, message *entities.De
 
 	// Save device to repository
 	if err := uc.deviceRepo.Save(ctx, device); err != nil {
+		uc.logger.Error("failed_to_save_new_device",
+			zap.Error(err),
+			zap.String("mac_address", device.GetID()),
+			zap.String("device_name", device.GetDeviceName()),
+			zap.String("component", "device_registration_usecase"),
+		)
 		return fmt.Errorf("failed to save new device: %w", err)
 	}
 
-	log.Printf("Successfully registered new device: %s (%s)", device.DeviceName, device.MACAddress)
+	uc.logger.Info("new_device_registered_successfully",
+		zap.String("mac_address", device.GetID()),
+		zap.String("device_name", device.GetDeviceName()),
+		zap.String("ip_address", device.GetIPAddress()),
+		zap.String("component", "device_registration_usecase"),
+	)
 
 	// Publish device detected event AFTER successful database operation
 	// Event publishing failure should NOT fail the registration process
@@ -88,10 +146,21 @@ func (uc *useCaseImpl) updateExistingDevice(ctx context.Context, existingDevice 
 
 	// Update existing device
 	if err := uc.deviceRepo.Update(ctx, existingDevice); err != nil {
+		uc.logger.Error("failed_to_update_existing_device",
+			zap.Error(err),
+			zap.String("mac_address", existingDevice.GetID()),
+			zap.String("device_name", existingDevice.GetDeviceName()),
+			zap.String("component", "device_registration_usecase"),
+		)
 		return fmt.Errorf("failed to update existing device: %w", err)
 	}
 
-	log.Printf("Successfully updated existing device: %s (%s)", existingDevice.GetDeviceName(), existingDevice.GetID())
+	uc.logger.Info("existing_device_updated_successfully",
+		zap.String("mac_address", existingDevice.GetID()),
+		zap.String("device_name", existingDevice.GetDeviceName()),
+		zap.String("ip_address", existingDevice.GetIPAddress()),
+		zap.String("component", "device_registration_usecase"),
+	)
 
 	// Publish device detected event AFTER successful database operation
 	uc.publishDeviceDetectedEvent(ctx, existingDevice.GetID(), existingDevice.GetIPAddress())
@@ -104,33 +173,48 @@ func (uc *useCaseImpl) updateExistingDevice(ctx context.Context, existingDevice 
 func (uc *useCaseImpl) publishDeviceDetectedEvent(ctx context.Context, macAddress, ipAddress string) {
 	// Skip if no event publisher is configured
 	if uc.eventPublisher == nil {
-		log.Printf("No event publisher configured, skipping event for device: %s", macAddress)
+		uc.logger.Warn("no_event_publisher_configured",
+			zap.String("mac_address", macAddress),
+			zap.String("component", "device_registration_usecase"),
+		)
 		return
 	}
 
 	// Check if publisher is connected
 	if !uc.eventPublisher.IsConnected() {
-		log.Printf("Event publisher not connected, skipping event for device: %s", macAddress)
+		uc.logger.Warn("event_publisher_not_connected",
+			zap.String("mac_address", macAddress),
+			zap.String("component", "device_registration_usecase"),
+		)
 		return
 	}
 
 	// Create device detected event
 	event, err := entities.NewDeviceDetectedEvent(macAddress, ipAddress)
 	if err != nil {
-		log.Printf("Failed to create device detected event for %s: %v", macAddress, err)
+		uc.logger.Error("failed_to_create_device_detected_event",
+			zap.Error(err),
+			zap.String("mac_address", macAddress),
+			zap.String("ip_address", ipAddress),
+			zap.String("component", "device_registration_usecase"),
+		)
 		return
 	}
 
 	// Publish event (fire-and-forget with logging)
 	subject := event.GetSubject()
 	if err := uc.eventPublisher.Publish(ctx, subject, event); err != nil {
-		log.Printf("Failed to publish device detected event for %s to subject %s: %v",
-			macAddress, subject, err)
+		uc.logger.LogEventPublishing("device_detected", subject, event.EventID, false, err)
 		return
 	}
 
-	log.Printf("Successfully published device detected event for device: %s (Event ID: %s)",
-		macAddress, event.EventID)
+	uc.logger.LogEventPublishing("device_detected", subject, event.EventID, true, nil)
+	uc.logger.Debug("device_detected_event_published",
+		zap.String("mac_address", macAddress),
+		zap.String("event_id", event.EventID),
+		zap.String("subject", subject),
+		zap.String("component", "device_registration_usecase"),
+	)
 }
 
 // MessageHandler implements the ports.MessageHandler interface

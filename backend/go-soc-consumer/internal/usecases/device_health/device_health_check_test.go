@@ -2,7 +2,6 @@ package devicehealth
 
 import (
 	"context"
-	"log/slog"
 	"testing"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/entities"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/mocks"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
 func TestDefaultHealthCheckConfig(t *testing.T) {
@@ -32,16 +32,18 @@ func TestNewDeviceHealthUseCase(t *testing.T) {
 		MaxConcurrent:   5,
 		CleanupInterval: 1 * time.Minute,
 	}
-	logger := slog.Default()
+	testLogger, err := logger.NewDevelopmentLogger()
+	assert.NoError(t, err)
+	assert.NotNil(t, testLogger)
 
-	uc := NewDeviceHealthUseCase(repo, checker, config, logger)
+	uc := NewDeviceHealthUseCase(repo, checker, config, testLogger)
 
 	require.NotNil(t, uc)
 	impl := uc.(*useCaseImpl)
 	assert.Equal(t, repo, impl.deviceRepo)
 	assert.Equal(t, checker, impl.healthChecker)
 	assert.Equal(t, config, impl.config)
-	assert.Equal(t, logger, impl.logger)
+	assert.Equal(t, testLogger, impl.logger)
 	assert.NotNil(t, impl.semaphore)
 	assert.NotNil(t, impl.cleanupDone)
 }
@@ -54,12 +56,12 @@ func TestNewDeviceHealthUseCase_NilConfig(t *testing.T) {
 
 	require.NotNil(t, uc)
 	impl := uc.(*useCaseImpl)
-	
+
 	// Should use default config
 	defaultConfig := DefaultHealthCheckConfig()
 	assert.Equal(t, defaultConfig.MaxConcurrent, impl.config.MaxConcurrent)
 	assert.Equal(t, defaultConfig.CleanupInterval, impl.config.CleanupInterval)
-	
+
 	// Should use default logger
 	assert.NotNil(t, impl.logger)
 }
@@ -93,7 +95,7 @@ func TestProcessDeviceDetectedEvent_ValidEvent(t *testing.T) {
 	err = uc.ProcessDeviceDetectedEvent(context.Background(), event)
 
 	assert.NoError(t, err)
-	
+
 	// Give time for the goroutine to complete to avoid affecting other tests
 	time.Sleep(10 * time.Millisecond)
 }
@@ -157,7 +159,7 @@ func TestUpdateDeviceStatus_OnlineTransition(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, "online", device.GetStatus())
-	
+
 	repo.AssertExpectations(t)
 }
 
@@ -188,7 +190,7 @@ func TestUpdateDeviceStatus_OfflineTransition(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, "offline", device.GetStatus())
-	
+
 	repo.AssertExpectations(t)
 }
 
@@ -210,7 +212,7 @@ func TestUpdateDeviceStatus_NilResult(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, "offline", device.GetStatus()) // Should default to offline
-	
+
 	repo.AssertExpectations(t)
 }
 
@@ -229,7 +231,7 @@ func TestUpdateDeviceStatus_DeviceNotFound(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "device not found")
-	
+
 	repo.AssertExpectations(t)
 }
 
@@ -248,7 +250,7 @@ func TestUpdateDeviceStatus_RepositoryFindError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to find device")
-	
+
 	repo.AssertExpectations(t)
 }
 
@@ -272,7 +274,7 @@ func TestUpdateDeviceStatus_RepositoryUpdateError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to save device status update")
-	
+
 	repo.AssertExpectations(t)
 }
 
@@ -361,7 +363,7 @@ func TestSemaphore_ContextCancellation(t *testing.T) {
 func TestStartCleanup_Lifecycle(t *testing.T) {
 	repo := &mocks.MockDeviceRepository{}
 	checker := &mocks.MockDeviceHealthChecker{}
-	
+
 	config := &HealthCheckConfig{CleanupInterval: 100 * time.Millisecond}
 	uc := NewDeviceHealthUseCase(repo, checker, config, nil)
 
@@ -370,7 +372,7 @@ func TestStartCleanup_Lifecycle(t *testing.T) {
 
 	// Start cleanup
 	uc.StartCleanup(ctx)
-	
+
 	// Verify cleanup ticker is running
 	impl := uc.(*useCaseImpl)
 	assert.NotNil(t, impl.cleanupTicker)
@@ -380,7 +382,7 @@ func TestStartCleanup_Lifecycle(t *testing.T) {
 
 	// Stop cleanup
 	uc.StopCleanup()
-	
+
 	// Verify cleanup stopped
 	time.Sleep(50 * time.Millisecond)
 }
@@ -399,7 +401,7 @@ func TestStopCleanup(t *testing.T) {
 
 	// Stop cleanup
 	uc.StopCleanup()
-	
+
 	// Give time for cleanup to stop
 	time.Sleep(50 * time.Millisecond)
 }
@@ -417,7 +419,7 @@ func TestStartCleanup_OncePattern(t *testing.T) {
 	uc.StartCleanup(ctx)
 
 	impl := uc.(*useCaseImpl)
-	
+
 	// Should only create one ticker due to sync.Once
 	assert.NotNil(t, impl.cleanupTicker)
 

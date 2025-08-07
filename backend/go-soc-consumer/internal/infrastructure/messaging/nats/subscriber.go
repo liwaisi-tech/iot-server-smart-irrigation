@@ -3,11 +3,14 @@ package nats
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sync"
+	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/nats-io/nats.go"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
 // subscriber implements the EventSubscriber port using NATS
@@ -15,13 +18,13 @@ type subscriber struct {
 	config        *NATSConfig
 	conn          *nats.Conn
 	subscriptions map[string]*nats.Subscription
-	logger        *slog.Logger
+	logger        *logger.IoTLogger
 	mu            sync.RWMutex
 	started       bool
 }
 
 // NewNATSSubscriber creates a new NATS event subscriber
-func NewNATSSubscriber(config *NATSConfig, logger *slog.Logger) (ports.EventSubscriber, error) {
+func NewNATSSubscriber(config *NATSConfig, iotLogger *logger.IoTLogger) (ports.EventSubscriber, error) {
 	if config == nil {
 		config = DefaultNATSConfig()
 	}
@@ -30,14 +33,18 @@ func NewNATSSubscriber(config *NATSConfig, logger *slog.Logger) (ports.EventSubs
 		return nil, fmt.Errorf("invalid NATS config: %w", err)
 	}
 
-	if logger == nil {
-		logger = slog.Default()
+	if iotLogger == nil {
+		defaultLogger, err := logger.NewDefaultLogger()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create default logger: %w", err)
+		}
+		iotLogger = defaultLogger
 	}
 
 	return &subscriber{
 		config:        config,
 		subscriptions: make(map[string]*nats.Subscription),
-		logger:        logger,
+		logger:        iotLogger,
 	}, nil
 }
 
@@ -55,7 +62,10 @@ func (s *subscriber) Start(ctx context.Context) error {
 	}
 
 	s.started = true
-	s.logger.Info("NATS subscriber started successfully")
+	s.logger.LogApplicationEvent("nats_subscriber_started", "nats_subscriber",
+		zap.String("server_url", s.config.URL),
+		zap.String("client_id", s.config.ClientID),
+	)
 	return nil
 }
 
@@ -70,19 +80,38 @@ func (s *subscriber) connect() error {
 		nats.MaxPingsOutstanding(s.config.MaxPingsOutstanding),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
 			if err != nil {
-				s.logger.Error("NATS subscriber disconnected", "error", err)
+				s.logger.Error("nats_subscriber_disconnected",
+					zap.Error(err),
+					zap.String("server_url", s.config.URL),
+					zap.String("client_id", s.config.ClientID),
+					zap.String("component", "nats_subscriber"),
+				)
 			} else {
-				s.logger.Info("NATS subscriber disconnected gracefully")
+				s.logger.LogApplicationEvent("nats_subscriber_disconnected_gracefully", "nats_subscriber",
+					zap.String("server_url", s.config.URL),
+					zap.String("client_id", s.config.ClientID),
+				)
 			}
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
-			s.logger.Info("NATS subscriber reconnected", "server", nc.ConnectedUrl())
+			s.logger.LogApplicationEvent("nats_subscriber_reconnected", "nats_subscriber",
+				zap.String("server_url", nc.ConnectedUrl()),
+				zap.String("client_id", s.config.ClientID),
+			)
 		}),
 		nats.ClosedHandler(func(nc *nats.Conn) {
 			if nc.LastError() != nil {
-				s.logger.Error("NATS subscriber connection closed", "error", nc.LastError())
+				s.logger.Error("nats_subscriber_connection_closed",
+					zap.Error(nc.LastError()),
+					zap.String("server_url", s.config.URL),
+					zap.String("client_id", s.config.ClientID),
+					zap.String("component", "nats_subscriber"),
+				)
 			} else {
-				s.logger.Info("NATS subscriber connection closed gracefully")
+				s.logger.LogApplicationEvent("nats_subscriber_connection_closed_gracefully", "nats_subscriber",
+					zap.String("server_url", s.config.URL),
+					zap.String("client_id", s.config.ClientID),
+				)
 			}
 		}),
 	}
@@ -93,7 +122,10 @@ func (s *subscriber) connect() error {
 	}
 
 	s.conn = conn
-	s.logger.Info("NATS subscriber connected successfully", "server", conn.ConnectedUrl())
+	s.logger.LogApplicationEvent("nats_subscriber_connected", "nats_subscriber",
+		zap.String("server_url", conn.ConnectedUrl()),
+		zap.String("client_id", s.config.ClientID),
+	)
 	
 	return nil
 }
@@ -115,22 +147,44 @@ func (s *subscriber) Subscribe(ctx context.Context, subject string, handler port
 		return fmt.Errorf("already subscribed to subject: %s", subject)
 	}
 
-	s.logger.Info("Subscribing to NATS subject", "subject", subject)
+	s.logger.LogApplicationEvent("nats_subscribing_to_subject", "nats_subscriber",
+		zap.String("subject", subject),
+		zap.String("client_id", s.config.ClientID),
+	)
 
 	// Create a wrapper handler that adapts NATS message to our MessageHandler interface
 	natsHandler := func(msg *nats.Msg) {
-		s.logger.Debug("Received NATS message", 
-			"subject", msg.Subject, 
-			"data_length", len(msg.Data))
+		start := time.Now()
+		payloadSize := len(msg.Data)
+		
+		s.logger.Debug("nats_message_received",
+			zap.String("subject", msg.Subject),
+			zap.Int("data_length_bytes", payloadSize),
+			zap.String("component", "nats_subscriber"),
+		)
 
 		// Create a background context for message processing
 		// Individual handlers should implement their own timeouts if needed
 		msgCtx := context.Background()
 
-		if err := handler(msgCtx, msg.Subject, msg.Data); err != nil {
-			s.logger.Error("Error handling NATS message", 
-				"subject", msg.Subject, 
-				"error", err)
+		err := handler(msgCtx, msg.Subject, msg.Data)
+		processingDuration := time.Since(start)
+		
+		if err != nil {
+			s.logger.Error("nats_message_processing_error",
+				zap.Error(err),
+				zap.String("subject", msg.Subject),
+				zap.Int("payload_size_bytes", payloadSize),
+				zap.Duration("processing_duration", processingDuration),
+				zap.String("component", "nats_subscriber"),
+			)
+		} else {
+			s.logger.Debug("nats_message_processed_successfully",
+				zap.String("subject", msg.Subject),
+				zap.Int("payload_size_bytes", payloadSize),
+				zap.Duration("processing_duration", processingDuration),
+				zap.String("component", "nats_subscriber"),
+			)
 		}
 	}
 
@@ -140,7 +194,10 @@ func (s *subscriber) Subscribe(ctx context.Context, subject string, handler port
 	}
 
 	s.subscriptions[subject] = sub
-	s.logger.Info("Successfully subscribed to NATS subject", "subject", subject)
+	s.logger.LogApplicationEvent("nats_subscribed_to_subject", "nats_subscriber",
+		zap.String("subject", subject),
+		zap.String("client_id", s.config.ClientID),
+	)
 	
 	return nil
 }
@@ -155,14 +212,28 @@ func (s *subscriber) Unsubscribe(ctx context.Context, subject string) error {
 		return fmt.Errorf("not subscribed to subject: %s", subject)
 	}
 
-	s.logger.Info("Unsubscribing from NATS subject", "subject", subject)
+	s.logger.LogApplicationEvent("nats_subject_unsubscribing", "nats_subscriber",
+		zap.String("subject", subject),
+		zap.String("client_id", s.config.ClientID),
+	)
 
+	start := time.Now()
 	if err := sub.Unsubscribe(); err != nil {
+		s.logger.Error("nats_subject_unsubscription_failed",
+			zap.Error(err),
+			zap.String("subject", subject),
+			zap.Duration("unsubscription_attempt_duration", time.Since(start)),
+			zap.String("component", "nats_subscriber"),
+		)
 		return fmt.Errorf("failed to unsubscribe from subject %s: %w", subject, err)
 	}
 
 	delete(s.subscriptions, subject)
-	s.logger.Info("Successfully unsubscribed from NATS subject", "subject", subject)
+	s.logger.LogApplicationEvent("nats_subject_unsubscribed", "nats_subscriber",
+		zap.String("subject", subject),
+		zap.String("client_id", s.config.ClientID),
+		zap.Duration("unsubscription_duration", time.Since(start)),
+	)
 	
 	return nil
 }
@@ -184,21 +255,27 @@ func (s *subscriber) Stop(ctx context.Context) error {
 		return nil
 	}
 
-	s.logger.Info("Stopping NATS subscriber")
+	s.logger.LogApplicationEvent("nats_subscriber_stopping", "nats_subscriber")
 
 	// Unsubscribe from all subjects
 	for subject, sub := range s.subscriptions {
-		s.logger.Debug("Unsubscribing from subject during shutdown", "subject", subject)
+		s.logger.Debug("nats_subject_unsubscribing_shutdown",
+			zap.String("subject", subject),
+			zap.String("component", "nats_subscriber"),
+		)
 		if err := sub.Unsubscribe(); err != nil {
-			s.logger.Warn("Error unsubscribing from subject during shutdown", 
-				"subject", subject, 
-				"error", err)
+			s.logger.Warn("nats_subject_unsubscription_error_shutdown",
+				zap.Error(err),
+				zap.String("subject", subject),
+				zap.String("component", "nats_subscriber"),
+			)
 		}
 	}
 	s.subscriptions = make(map[string]*nats.Subscription)
 
 	// Close the connection
 	if s.conn != nil {
+		start := time.Now()
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
@@ -207,18 +284,23 @@ func (s *subscriber) Stop(ctx context.Context) error {
 
 		select {
 		case <-done:
-			s.logger.Info("NATS subscriber connection closed successfully")
+			s.logger.LogApplicationEvent("nats_subscriber_connection_closed", "nats_subscriber",
+				zap.Duration("close_duration", time.Since(start)),
+			)
 		case <-ctx.Done():
 			// Force close if context timeout
 			s.conn.Close()
-			s.logger.Warn("NATS subscriber connection closed due to context timeout")
+			s.logger.Warn("nats_subscriber_connection_timeout",
+				zap.Duration("timeout_after", time.Since(start)),
+				zap.String("component", "nats_subscriber"),
+			)
 		}
 
 		s.conn = nil
 	}
 
 	s.started = false
-	s.logger.Info("NATS subscriber stopped successfully")
+	s.logger.LogApplicationEvent("nats_subscriber_stopped", "nats_subscriber")
 	
 	return ctx.Err()
 }

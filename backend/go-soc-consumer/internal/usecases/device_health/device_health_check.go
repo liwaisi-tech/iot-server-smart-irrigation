@@ -3,12 +3,14 @@ package devicehealth
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/entities"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
 // HealthCheckConfig holds configuration for the health check use case
@@ -46,7 +48,7 @@ type useCaseImpl struct {
 	deviceRepo    ports.DeviceRepository
 	healthChecker ports.DeviceHealthChecker
 	config        *HealthCheckConfig
-	logger        *slog.Logger
+	logger        *logger.IoTLogger
 	semaphore     chan struct{} // For limiting concurrent health checks
 	cleanupTicker *time.Ticker
 	cleanupDone   chan struct{}
@@ -58,21 +60,26 @@ func NewDeviceHealthUseCase(
 	deviceRepo ports.DeviceRepository,
 	healthChecker ports.DeviceHealthChecker,
 	config *HealthCheckConfig,
-	logger *slog.Logger,
+	iotLogger *logger.IoTLogger,
 ) DeviceHealthUseCase {
 	if config == nil {
 		config = DefaultHealthCheckConfig()
 	}
 
-	if logger == nil {
-		logger = slog.Default()
+	if iotLogger == nil {
+		defaultLogger, err := logger.NewDefaultLogger()
+		if err != nil {
+			// Fallback to a basic logger if default creation fails
+			panic(fmt.Sprintf("failed to create default logger: %v", err))
+		}
+		iotLogger = defaultLogger
 	}
 
 	return &useCaseImpl{
 		deviceRepo:    deviceRepo,
 		healthChecker: healthChecker,
 		config:        config,
-		logger:        logger,
+		logger:        iotLogger,
 		semaphore:     make(chan struct{}, config.MaxConcurrent),
 		cleanupDone:   make(chan struct{}),
 	}
@@ -88,10 +95,12 @@ func (uc *useCaseImpl) ProcessDeviceDetectedEvent(ctx context.Context, event *en
 		return fmt.Errorf("invalid event: %w", err)
 	}
 
-	uc.logger.Info("Processing device detected event",
-		"mac_address", event.MACAddress,
-		"ip_address", event.IPAddress,
-		"event_id", event.EventID)
+	uc.logger.Info("device_detected_event_processing_started",
+		zap.String("mac_address", event.MACAddress),
+		zap.String("ip_address", event.IPAddress),
+		zap.String("event_id", event.EventID),
+		zap.String("component", "device_health_usecase"),
+	)
 
 	// Perform health check in a goroutine to avoid blocking
 	go uc.performHealthCheck(context.Background(), event)
@@ -106,30 +115,47 @@ func (uc *useCaseImpl) performHealthCheck(ctx context.Context, event *entities.D
 	case uc.semaphore <- struct{}{}:
 		defer func() { <-uc.semaphore }()
 	case <-ctx.Done():
-		uc.logger.Warn("Context cancelled before acquiring semaphore",
-			"mac_address", event.MACAddress)
+		uc.logger.Warn("health_check_cancelled_before_semaphore",
+			zap.String("mac_address", event.MACAddress),
+			zap.Error(ctx.Err()),
+			zap.String("component", "device_health_usecase"),
+		)
 		return
 	}
 
-	uc.logger.Info("Starting health check",
-		"mac_address", event.MACAddress,
-		"ip_address", event.IPAddress)
+	uc.logger.Debug("health_check_starting",
+		zap.String("mac_address", event.MACAddress),
+		zap.String("ip_address", event.IPAddress),
+		zap.String("component", "device_health_usecase"),
+	)
 
 	// Perform the health check
+	start := time.Now()
 	result, err := uc.healthChecker.CheckHealth(ctx, event.IPAddress)
+	healthCheckDuration := time.Since(start)
+	
 	if err != nil {
-		uc.logger.Error("Health check failed",
-			"mac_address", event.MACAddress,
-			"ip_address", event.IPAddress,
-			"error", err)
+		uc.logger.LogDeviceHealthCheck(event.MACAddress, event.IPAddress, false, healthCheckDuration, err)
+		uc.logger.Error("health_check_error",
+			zap.Error(err),
+			zap.String("mac_address", event.MACAddress),
+			zap.String("ip_address", event.IPAddress),
+			zap.Duration("duration", healthCheckDuration),
+			zap.String("component", "device_health_usecase"),
+		)
 		// Continue to update device status even if health check failed
+	} else {
+		isAlive := result != nil && result.Success
+		uc.logger.LogDeviceHealthCheck(event.MACAddress, event.IPAddress, isAlive, healthCheckDuration, nil)
 	}
 
 	// Update device status based on health check result
 	if err := uc.updateDeviceStatus(ctx, event.MACAddress, result); err != nil {
-		uc.logger.Error("Failed to update device status",
-			"mac_address", event.MACAddress,
-			"error", err)
+		uc.logger.Error("device_status_update_failed",
+			zap.Error(err),
+			zap.String("mac_address", event.MACAddress),
+			zap.String("component", "device_health_usecase"),
+		)
 	}
 }
 
@@ -149,31 +175,34 @@ func (uc *useCaseImpl) updateDeviceStatus(ctx context.Context, macAddress string
 	var newStatus string
 	if result != nil && result.Success {
 		newStatus = "online"
-		uc.logger.Info("Device health check succeeded",
-			"mac_address", macAddress,
-			"ip_address", result.IPAddress,
-			"status_code", result.StatusCode,
-			"attempts", result.Attempts,
-			"duration", result.Duration,
-			"response_body", result.ResponseBody)
+		uc.logger.Info("device_health_check_succeeded",
+			zap.String("mac_address", macAddress),
+			zap.String("ip_address", result.IPAddress),
+			zap.Int("status_code", result.StatusCode),
+			zap.Int("attempts", result.Attempts),
+			zap.Duration("duration", result.Duration),
+			zap.String("response_body", result.ResponseBody),
+			zap.String("component", "device_health_usecase"),
+		)
 
 		// Print the /whoami response to console as required
 		fmt.Printf("Device %s (/whoami response): %s\n", macAddress, result.ResponseBody)
 	} else {
 		newStatus = "offline"
 		errorMsg := "unknown error"
-		if result != nil && result.Error != "" {
-			errorMsg = result.Error
+		attempts := 0
+		if result != nil {
+			if result.Error != "" {
+				errorMsg = result.Error
+			}
+			attempts = result.Attempts
 		}
-		uc.logger.Warn("Device health check failed",
-			"mac_address", macAddress,
-			"error", errorMsg,
-			"attempts", func() int {
-				if result != nil {
-					return result.Attempts
-				}
-				return 0
-			}())
+		uc.logger.Warn("device_health_check_failed",
+			zap.String("mac_address", macAddress),
+			zap.String("error", errorMsg),
+			zap.Int("attempts", attempts),
+			zap.String("component", "device_health_usecase"),
+		)
 	}
 
 	// Update device status
@@ -186,9 +215,11 @@ func (uc *useCaseImpl) updateDeviceStatus(ctx context.Context, macAddress string
 		return fmt.Errorf("failed to save device status update: %w", err)
 	}
 
-	uc.logger.Info("Device status updated successfully",
-		"mac_address", macAddress,
-		"new_status", newStatus)
+	uc.logger.Info("device_status_updated_successfully",
+		zap.String("mac_address", macAddress),
+		zap.String("new_status", newStatus),
+		zap.String("component", "device_health_usecase"),
+	)
 
 	return nil
 }
@@ -213,8 +244,9 @@ func (uc *useCaseImpl) StartCleanup(ctx context.Context) {
 			}
 		}()
 
-		uc.logger.Info("Health check cleanup started",
-			"cleanup_interval", uc.config.CleanupInterval)
+		uc.logger.LogApplicationEvent("health_check_cleanup_started", "device_health_usecase",
+			zap.Duration("cleanup_interval", uc.config.CleanupInterval),
+		)
 	})
 }
 
@@ -224,12 +256,16 @@ func (uc *useCaseImpl) StopCleanup() {
 	if uc.cleanupTicker != nil {
 		uc.cleanupTicker.Stop()
 	}
-	uc.logger.Info("Health check cleanup stopped")
+	uc.logger.LogApplicationEvent("health_check_cleanup_stopped", "device_health_usecase")
 }
 
 // performCleanup cleans up internal state to prevent memory leaks
 func (uc *useCaseImpl) performCleanup() {
-	uc.logger.Debug("Performing health check cleanup")
+	uc.logger.Debug("health_check_cleanup_performing",
+		zap.String("component", "device_health_usecase"),
+	)
 
-	uc.logger.Debug("Health check cleanup completed")
+	uc.logger.Debug("health_check_cleanup_completed",
+		zap.String("component", "device_health_usecase"),
+	)
 }
