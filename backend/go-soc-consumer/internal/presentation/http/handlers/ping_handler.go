@@ -7,10 +7,10 @@ import (
 )
 
 type PingHandler struct {
-	pingUseCase ping.UseCase
+	pingUseCase ping.PingUseCase
 }
 
-func NewPingHandler(pingUseCase ping.UseCase) *PingHandler {
+func NewPingHandler(pingUseCase ping.PingUseCase) *PingHandler {
 	return &PingHandler{
 		pingUseCase: pingUseCase,
 	}
@@ -18,9 +18,9 @@ func NewPingHandler(pingUseCase ping.UseCase) *PingHandler {
 
 func (h *PingHandler) Ping(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
-	response := h.pingUseCase.Execute(ctx)
-	
+
+	response := h.pingUseCase.Ping(ctx)
+
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(response))

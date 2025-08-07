@@ -16,7 +16,8 @@ import (
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/database"
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/messaging"
+	messaging "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/messaging/mqtt"
+	messaginghandlers "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/messaging/mqtt/handlers"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/persistence/postgres"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/presentation/http/handlers"
 	deviceregistration "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/device_registration"
@@ -63,10 +64,10 @@ func main() {
 
 	// Initialize use cases
 	pingUseCase := ping.NewUseCase()
-	deviceRegistrationUseCase := deviceregistration.NewUseCase(deviceRepo)
+	deviceRegistrationUseCase := deviceregistration.NewDeviceRegistrationUseCase(deviceRepo)
 
 	// Initialize message handler
-	messageHandler := messaging.NewDeviceRegistrationHandler(deviceRegistrationUseCase)
+	messageHandler := messaginghandlers.NewDeviceRegistrationHandler(deviceRegistrationUseCase)
 
 	// Initialize handlers
 	pingHandler := handlers.NewPingHandler(pingUseCase)

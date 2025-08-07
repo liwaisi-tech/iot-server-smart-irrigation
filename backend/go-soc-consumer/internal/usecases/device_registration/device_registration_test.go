@@ -15,9 +15,9 @@ import (
 
 func TestNewUseCase(t *testing.T) {
 	mockRepo := mocks.NewMockDeviceRepository(t)
-	
-	useCase := NewUseCase(mockRepo)
-	
+
+	useCase := NewDeviceRegistrationUseCase(mockRepo)
+
 	assert.NotNil(t, useCase)
 	assert.Equal(t, mockRepo, useCase.deviceRepo)
 }
@@ -45,7 +45,7 @@ func TestUseCase_RegisterDevice_NewDevice(t *testing.T) {
 					FindByMACAddress(mock.Anything, "AA:BB:CC:DD:EE:FF").
 					Return(nil, errors.New("device not found")).
 					Once()
-				
+
 				// Save new device successfully
 				mockRepo.EXPECT().
 					Save(mock.Anything, mock.AnythingOfType("*entities.Device")).
@@ -69,7 +69,7 @@ func TestUseCase_RegisterDevice_NewDevice(t *testing.T) {
 					FindByMACAddress(mock.Anything, "AA:BB:CC:DD:EE:FF").
 					Return(nil, errors.New("device not found")).
 					Once()
-				
+
 				// Save fails
 				mockRepo.EXPECT().
 					Save(mock.Anything, mock.AnythingOfType("*entities.Device")).
@@ -85,17 +85,17 @@ func TestUseCase_RegisterDevice_NewDevice(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := mocks.NewMockDeviceRepository(t)
 			tt.setup(mockRepo)
-			
-			useCase := NewUseCase(mockRepo)
+
+			useCase := NewDeviceRegistrationUseCase(mockRepo)
 			err := useCase.RegisterDevice(context.Background(), tt.message)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -142,7 +142,7 @@ func TestUseCase_RegisterDevice_ExistingDevice(t *testing.T) {
 						Status:              "offline",
 					}, nil).
 					Once()
-				
+
 				// Update device successfully
 				mockRepo.EXPECT().
 					Update(mock.Anything, mock.MatchedBy(func(device *entities.Device) bool {
@@ -189,7 +189,7 @@ func TestUseCase_RegisterDevice_ExistingDevice(t *testing.T) {
 						Status:              "offline",
 					}, nil).
 					Once()
-				
+
 				// Update fails
 				mockRepo.EXPECT().
 					Update(mock.Anything, mock.AnythingOfType("*entities.Device")).
@@ -205,17 +205,17 @@ func TestUseCase_RegisterDevice_ExistingDevice(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := mocks.NewMockDeviceRepository(t)
 			tt.setup(mockRepo)
-			
-			useCase := NewUseCase(mockRepo)
+
+			useCase := NewDeviceRegistrationUseCase(mockRepo)
 			err := useCase.RegisterDevice(context.Background(), tt.message)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -273,17 +273,17 @@ func TestUseCase_createNewDevice(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := mocks.NewMockDeviceRepository(t)
 			tt.setup(mockRepo)
-			
-			useCase := NewUseCase(mockRepo)
+
+			useCase := NewDeviceRegistrationUseCase(mockRepo)
 			err := useCase.createNewDevice(context.Background(), tt.message)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -363,17 +363,17 @@ func TestUseCase_updateExistingDevice(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := mocks.NewMockDeviceRepository(t)
 			tt.setup(mockRepo)
-			
-			useCase := NewUseCase(mockRepo)
+
+			useCase := NewDeviceRegistrationUseCase(mockRepo)
 			err := useCase.updateExistingDevice(context.Background(), tt.existingDevice, tt.message)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -381,10 +381,10 @@ func TestUseCase_updateExistingDevice(t *testing.T) {
 
 func TestNewMessageHandler(t *testing.T) {
 	mockRepo := mocks.NewMockDeviceRepository(t)
-	useCase := NewUseCase(mockRepo)
-	
+	useCase := NewDeviceRegistrationUseCase(mockRepo)
+
 	handler := NewMessageHandler(useCase)
-	
+
 	assert.NotNil(t, handler)
 	assert.Equal(t, useCase, handler.useCase)
 }
@@ -412,7 +412,7 @@ func TestMessageHandler_HandleDeviceRegistration(t *testing.T) {
 					FindByMACAddress(mock.Anything, "AA:BB:CC:DD:EE:FF").
 					Return(nil, errors.New("device not found")).
 					Once()
-				
+
 				// Save new device successfully
 				mockRepo.EXPECT().
 					Save(mock.Anything, mock.AnythingOfType("*entities.Device")).
@@ -436,7 +436,7 @@ func TestMessageHandler_HandleDeviceRegistration(t *testing.T) {
 					FindByMACAddress(mock.Anything, "AA:BB:CC:DD:EE:FF").
 					Return(nil, errors.New("device not found")).
 					Once()
-				
+
 				// Save fails
 				mockRepo.EXPECT().
 					Save(mock.Anything, mock.AnythingOfType("*entities.Device")).
@@ -452,19 +452,19 @@ func TestMessageHandler_HandleDeviceRegistration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockRepo := mocks.NewMockDeviceRepository(t)
 			tt.setup(mockRepo)
-			
-			useCase := NewUseCase(mockRepo)
+
+			useCase := NewDeviceRegistrationUseCase(mockRepo)
 			handler := NewMessageHandler(useCase)
-			
+
 			err := handler.HandleDeviceRegistration(context.Background(), tt.message)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 		})
 	}
@@ -474,35 +474,35 @@ func TestMessageHandler_HandleDeviceRegistration(t *testing.T) {
 func TestUseCase_RegisterDevice_EdgeCases(t *testing.T) {
 	t.Run("nil message", func(t *testing.T) {
 		mockRepo := mocks.NewMockDeviceRepository(t)
-		useCase := NewUseCase(mockRepo)
-		
+		useCase := NewDeviceRegistrationUseCase(mockRepo)
+
 		// This should panic or be handled gracefully depending on implementation
 		// Since the current implementation doesn't check for nil, this is more of a documentation test
 		assert.Panics(t, func() {
 			useCase.RegisterDevice(context.Background(), nil)
 		})
 	})
-	
+
 	t.Run("context cancellation", func(t *testing.T) {
 		mockRepo := mocks.NewMockDeviceRepository(t)
-		
+
 		// Setup mock to respect context cancellation
 		mockRepo.EXPECT().
 			FindByMACAddress(mock.Anything, "AA:BB:CC:DD:EE:FF").
 			Return(nil, context.Canceled).
 			Once()
-		
+
 		// The use case will still try to save since it treats any FindByMACAddress error as "not found"
 		mockRepo.EXPECT().
 			Save(mock.Anything, mock.AnythingOfType("*entities.Device")).
 			Return(context.Canceled).
 			Once()
-		
-		useCase := NewUseCase(mockRepo)
-		
+
+		useCase := NewDeviceRegistrationUseCase(mockRepo)
+
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
-		
+
 		message := &entities.DeviceRegistrationMessage{
 			MACAddress:          "AA:BB:CC:DD:EE:FF",
 			DeviceName:          "Test Device",
@@ -510,10 +510,10 @@ func TestUseCase_RegisterDevice_EdgeCases(t *testing.T) {
 			LocationDescription: "Garden Zone 1",
 			ReceivedAt:          time.Now(),
 		}
-		
+
 		err := useCase.RegisterDevice(ctx, message)
 		assert.Error(t, err)
-		
+
 		mockRepo.AssertExpectations(t)
 	})
 }
@@ -521,19 +521,19 @@ func TestUseCase_RegisterDevice_EdgeCases(t *testing.T) {
 // Benchmark tests
 func BenchmarkUseCase_RegisterDevice_NewDevice(b *testing.B) {
 	mockRepo := mocks.NewMockDeviceRepository(&testing.T{})
-	
+
 	// Setup mock for all iterations
 	mockRepo.EXPECT().
 		FindByMACAddress(mock.Anything, mock.AnythingOfType("string")).
 		Return(nil, errors.New("device not found")).
 		Times(b.N)
-	
+
 	mockRepo.EXPECT().
 		Save(mock.Anything, mock.AnythingOfType("*entities.Device")).
 		Return(nil).
 		Times(b.N)
-	
-	useCase := NewUseCase(mockRepo)
+
+	useCase := NewDeviceRegistrationUseCase(mockRepo)
 	message := &entities.DeviceRegistrationMessage{
 		MACAddress:          "AA:BB:CC:DD:EE:FF",
 		DeviceName:          "Test Device",
@@ -541,7 +541,7 @@ func BenchmarkUseCase_RegisterDevice_NewDevice(b *testing.B) {
 		LocationDescription: "Garden Zone 1",
 		ReceivedAt:          time.Now(),
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		useCase.RegisterDevice(context.Background(), message)
@@ -550,7 +550,7 @@ func BenchmarkUseCase_RegisterDevice_NewDevice(b *testing.B) {
 
 func BenchmarkUseCase_RegisterDevice_ExistingDevice(b *testing.B) {
 	mockRepo := mocks.NewMockDeviceRepository(&testing.T{})
-	
+
 	existingDevice := &entities.Device{
 		MACAddress:          "AA:BB:CC:DD:EE:FF",
 		DeviceName:          "Old Device",
@@ -560,19 +560,19 @@ func BenchmarkUseCase_RegisterDevice_ExistingDevice(b *testing.B) {
 		LastSeen:            time.Now().Add(-1 * time.Hour),
 		Status:              "offline",
 	}
-	
+
 	// Setup mock for all iterations
 	mockRepo.EXPECT().
 		FindByMACAddress(mock.Anything, mock.AnythingOfType("string")).
 		Return(existingDevice, nil).
 		Times(b.N)
-	
+
 	mockRepo.EXPECT().
 		Update(mock.Anything, mock.AnythingOfType("*entities.Device")).
 		Return(nil).
 		Times(b.N)
-	
-	useCase := NewUseCase(mockRepo)
+
+	useCase := NewDeviceRegistrationUseCase(mockRepo)
 	message := &entities.DeviceRegistrationMessage{
 		MACAddress:          "AA:BB:CC:DD:EE:FF",
 		DeviceName:          "Updated Device",
@@ -580,7 +580,7 @@ func BenchmarkUseCase_RegisterDevice_ExistingDevice(b *testing.B) {
 		LocationDescription: "Garden Zone 2",
 		ReceivedAt:          time.Now(),
 	}
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		useCase.RegisterDevice(context.Background(), message)

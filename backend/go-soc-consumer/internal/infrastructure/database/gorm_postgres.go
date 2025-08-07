@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -20,6 +21,14 @@ type GormPostgresDB struct {
 	config *config.DatabaseConfig
 }
 
+var (
+	instance     *GormPostgresDB
+	once         sync.Once
+	initError   error
+	initMutex   sync.Mutex
+)
+
+// NewGormPostgresDBWithoutConfig creates a new GORM PostgreSQL database connection without a config for testing purposes
 func NewGormPostgresDBWithoutConfig(db *gorm.DB) (*GormPostgresDB, error) {
 	return &GormPostgresDB{
 		db:     db,
@@ -27,12 +36,8 @@ func NewGormPostgresDBWithoutConfig(db *gorm.DB) (*GormPostgresDB, error) {
 	}, nil
 }
 
-// NewGormPostgresDB creates a new GORM PostgreSQL database connection
-func NewGormPostgresDB(cfg *config.DatabaseConfig) (*GormPostgresDB, error) {
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid database configuration: %w", err)
-	}
-
+// initDatabase handles the actual database initialization
+func initDatabase(cfg *config.DatabaseConfig) (*GormPostgresDB, error) {
 	// Configure GORM
 	gormConfig := &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
@@ -77,6 +82,47 @@ func NewGormPostgresDB(cfg *config.DatabaseConfig) (*GormPostgresDB, error) {
 	}
 
 	return gormDB, nil
+}
+
+// NewGormPostgresDB creates a new GORM PostgreSQL database connection using singleton pattern
+func NewGormPostgresDB(cfg *config.DatabaseConfig) (*GormPostgresDB, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("database configuration cannot be nil")
+	}
+
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid database configuration: %w", err)
+	}
+
+	once.Do(func() {
+		initMutex.Lock()
+		defer initMutex.Unlock()
+
+		// Check again in case another goroutine initialized the instance
+		// while we were waiting for the lock
+		if instance != nil {
+			return
+		}
+
+		// Initialize the database
+		var err error
+		instance, err = initDatabase(cfg)
+		if err != nil {
+			initError = fmt.Errorf("failed to initialize database: %w", err)
+		}
+	})
+
+	// If there was an error during initialization, return it
+	if initError != nil {
+		return nil, initError
+	}
+
+	// If we get here, the instance should be initialized
+	if instance == nil {
+		return nil, fmt.Errorf("database instance is nil after initialization")
+	}
+
+	return instance, nil
 }
 
 // GetDB returns the underlying *gorm.DB instance
