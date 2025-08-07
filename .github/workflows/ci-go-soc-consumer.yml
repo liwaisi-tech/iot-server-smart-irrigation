@@ -1,0 +1,93 @@
+name: Go SOC Consumer CI
+
+on:
+  push:
+    branches: [main, release/*]
+    paths:
+      - "backend/go-soc-consumer/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/go-soc-consumer/**"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      cache-hit: ${{ steps.cache-go.outputs.cache-hit }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23"
+
+      - name: Cache Go build and modules
+        id: cache-go
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+  lint:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23"
+          cache: true
+      - name: Install linter
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+      - name: Run linter via Makefile
+        run: make check-linter
+        working-directory: backend/go-soc-consumer
+
+  test:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ["1.22", "1.23"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
+      - name: Run tests via Makefile
+        run: make test
+        working-directory: backend/go-soc-consumer
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: backend/go-soc-consumer/coverage.out
+
+  build:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23"
+          cache: true
+      - name: Build binary via Makefile
+        run: make build
+        working-directory: backend/go-soc-consumer
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: iot-consumer
+          path: backend/go-soc-consumer/bin/iot-consumer
