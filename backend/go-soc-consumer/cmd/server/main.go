@@ -3,31 +3,58 @@ package main
 import (
 	"context"
 	"log"
-	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	_ "github.com/joho/godotenv/autoload"
+	"go.uber.org/zap"
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/app"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/config"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
 func main() {
-	// Initialize structured logger
-	logger := initializeLogger()
-
-	// Load configuration
+	// Load configuration first for logger initialization
 	cfg, err := config.NewAppConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	// Create application
-	application, err := app.New(cfg, logger)
+	// Initialize structured logger with config
+	iotLogger, err := initializeLoggerWithConfig(cfg)
 	if err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer func() {
+		if syncErr := iotLogger.Sync(); syncErr != nil {
+			// Don't log sync errors for stdout/stderr
+			if !strings.Contains(syncErr.Error(), "sync /dev/stdout") && !strings.Contains(syncErr.Error(), "sync /dev/stderr") {
+				log.Printf("Error syncing logger: %v", syncErr)
+			}
+		}
+	}()
+
+	// Configuration already loaded above
+
+	iotLogger.LogApplicationEvent("configuration_loaded", "main",
+		zap.String("mqtt_broker_url", cfg.MQTT.BrokerURL),
+		zap.String("db_host", cfg.Database.Host),
+		zap.Int("db_port", cfg.Database.Port),
+		zap.String("log_level", cfg.Logging.Level),
+		zap.String("log_format", cfg.Logging.Format),
+	)
+
+	// Create application
+	application, err := app.New(cfg, iotLogger)
+	if err != nil {
+		iotLogger.Error("application_creation_failed",
+			zap.Error(err),
+			zap.String("component", "main"),
+		)
 		log.Fatalf("Failed to create application: %v", err)
 	}
 
@@ -36,40 +63,76 @@ func main() {
 	defer cancel()
 
 	// Start application
-	logger.Info("Starting IoT SOC Consumer application")
+	iotLogger.LogApplicationEvent("application_starting", "main")
+	start := time.Now()
 	if err := application.Start(ctx); err != nil {
+		iotLogger.Error("application_start_failed",
+			zap.Error(err),
+			zap.Duration("startup_duration", time.Since(start)),
+			zap.String("component", "main"),
+		)
 		log.Fatalf("Failed to start application: %v", err)
 	}
 
+	iotLogger.LogApplicationEvent("application_started", "main",
+		zap.Duration("startup_duration", time.Since(start)),
+	)
+
 	// Wait for shutdown signal
-	waitForShutdownSignal(logger, cancel)
+	waitForShutdownSignal(iotLogger, cancel)
 
 	// Graceful shutdown
-	logger.Info("Shutting down application")
+	iotLogger.LogApplicationEvent("application_shutting_down", "main")
+	shutdownStart := time.Now()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
 
 	if err := application.Stop(shutdownCtx); err != nil {
-		logger.Error("Error during shutdown", "error", err)
+		iotLogger.Error("application_shutdown_error",
+			zap.Error(err),
+			zap.Duration("shutdown_duration", time.Since(shutdownStart)),
+			zap.String("component", "main"),
+		)
 		os.Exit(1)
 	}
 
-	logger.Info("Application shut down gracefully")
+	iotLogger.LogApplicationEvent("application_shutdown_complete", "main",
+		zap.Duration("shutdown_duration", time.Since(shutdownStart)),
+	)
 }
 
-// initializeLogger creates and configures the structured logger
-func initializeLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
+// initializeLoggerWithConfig creates and configures the IoT structured logger using app config
+func initializeLoggerWithConfig(cfg *config.AppConfig) (*logger.IoTLogger, error) {
+	// Get environment configuration with fallback to config
+	environment := getEnv("ENVIRONMENT", "production")
+
+	// Create logger configuration from app config
+	loggerConfig := logger.LoggerConfig{
+		Level:       cfg.Logging.Level,
+		Format:      cfg.Logging.Format,
+		Environment: environment,
+	}
+
+	// Create and return the logger
+	return logger.NewLogger(loggerConfig)
+}
+
+// getEnv gets an environment variable with a default value
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 // waitForShutdownSignal waits for SIGINT or SIGTERM and triggers shutdown
-func waitForShutdownSignal(logger *slog.Logger, cancel context.CancelFunc) {
+func waitForShutdownSignal(iotLogger *logger.IoTLogger, cancel context.CancelFunc) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	sig := <-quit
-	logger.Info("Received shutdown signal", "signal", sig.String())
+	iotLogger.LogApplicationEvent("shutdown_signal_received", "main",
+		zap.String("signal", sig.String()),
+	)
 	cancel()
 }

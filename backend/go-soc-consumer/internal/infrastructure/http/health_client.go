@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
 // HealthClientConfig holds configuration for the health checker
@@ -34,17 +36,22 @@ func DefaultHealthClientConfig() *HealthClientConfig {
 type healthClient struct {
 	config *HealthClientConfig
 	client *http.Client
-	logger *slog.Logger
+	logger *logger.IoTLogger
 }
 
 // NewHealthClient creates a new HTTP health checker implementation
-func NewHealthClient(config *HealthClientConfig, logger *slog.Logger) ports.DeviceHealthChecker {
+func NewHealthClient(config *HealthClientConfig, iotLogger *logger.IoTLogger) ports.DeviceHealthChecker {
 	if config == nil {
 		config = DefaultHealthClientConfig()
 	}
 	
-	if logger == nil {
-		logger = slog.Default()
+	if iotLogger == nil {
+		defaultLogger, err := logger.NewDefaultLogger()
+		if err != nil {
+			// Fallback to a basic implementation if default creation fails
+			panic(fmt.Sprintf("failed to create default logger: %v", err))
+		}
+		iotLogger = defaultLogger
 	}
 
 	return &healthClient{
@@ -52,7 +59,7 @@ func NewHealthClient(config *HealthClientConfig, logger *slog.Logger) ports.Devi
 		client: &http.Client{
 			Timeout: config.Timeout,
 		},
-		logger: logger,
+		logger: iotLogger,
 	}
 }
 
@@ -66,7 +73,11 @@ func (hc *healthClient) CheckHealth(ctx context.Context, ipAddress string) (*por
 	}
 
 	url := fmt.Sprintf("http://%s/whoami", ipAddress)
-	hc.logger.Info("Starting health check", "ip", ipAddress, "url", url)
+	hc.logger.Info("health_check_starting",
+		zap.String("ip_address", ipAddress),
+		zap.String("url", url),
+		zap.String("component", "health_client"),
+	)
 
 	var lastErr error
 	delay := hc.config.InitialDelay
@@ -84,40 +95,48 @@ func (hc *healthClient) CheckHealth(ctx context.Context, ipAddress string) (*por
 
 		if success {
 			result.Success = true
-			hc.logger.Info("Health check succeeded", 
-				"ip", ipAddress,
-				"attempt", attempt,
-				"status_code", statusCode,
-				"duration", duration,
-				"response_body", responseBody)
+			hc.logger.Info("health_check_succeeded",
+				zap.String("ip_address", ipAddress),
+				zap.Int("attempt", attempt),
+				zap.Int("status_code", statusCode),
+				zap.Duration("duration", duration),
+				zap.String("response_body", responseBody),
+				zap.String("component", "health_client"),
+			)
 			return result, nil
 		}
 
 		lastErr = err
 		if err != nil {
 			result.Error = err.Error()
-			hc.logger.Warn("Health check attempt failed",
-				"ip", ipAddress,
-				"attempt", attempt,
-				"error", err,
-				"status_code", statusCode,
-				"duration", duration)
+			hc.logger.Warn("health_check_attempt_failed",
+				zap.String("ip_address", ipAddress),
+				zap.Int("attempt", attempt),
+				zap.Error(err),
+				zap.Int("status_code", statusCode),
+				zap.Duration("duration", duration),
+				zap.String("component", "health_client"),
+			)
 		} else {
 			result.Error = fmt.Sprintf("HTTP status %d (expected 200)", statusCode)
-			hc.logger.Warn("Health check attempt failed - wrong status code",
-				"ip", ipAddress,
-				"attempt", attempt,
-				"status_code", statusCode,
-				"expected_status", 200,
-				"duration", duration)
+			hc.logger.Warn("health_check_attempt_wrong_status",
+				zap.String("ip_address", ipAddress),
+				zap.Int("attempt", attempt),
+				zap.Int("status_code", statusCode),
+				zap.Int("expected_status", 200),
+				zap.Duration("duration", duration),
+				zap.String("component", "health_client"),
+			)
 		}
 
 		// Don't wait after the last attempt
 		if attempt < hc.config.RetryAttempts {
-			hc.logger.Info("Waiting before next attempt",
-				"ip", ipAddress,
-				"delay", delay,
-				"next_attempt", attempt+1)
+			hc.logger.Debug("health_check_waiting_retry",
+				zap.String("ip_address", ipAddress),
+				zap.Duration("delay", delay),
+				zap.Int("next_attempt", attempt+1),
+				zap.String("component", "health_client"),
+			)
 			
 			select {
 			case <-ctx.Done():
@@ -130,10 +149,12 @@ func (hc *healthClient) CheckHealth(ctx context.Context, ipAddress string) (*por
 		}
 	}
 
-	hc.logger.Error("Health check failed after all attempts",
-		"ip", ipAddress,
-		"attempts", hc.config.RetryAttempts,
-		"final_error", lastErr)
+	hc.logger.Error("health_check_failed_all_attempts",
+		zap.String("ip_address", ipAddress),
+		zap.Int("total_attempts", hc.config.RetryAttempts),
+		zap.Error(lastErr),
+		zap.String("component", "health_client"),
+	)
 	
 	return result, lastErr
 }
@@ -154,7 +175,10 @@ func (hc *healthClient) performHealthCheck(ctx context.Context, url string) (suc
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			hc.logger.Warn("Failed to close response body", "error", closeErr)
+			hc.logger.Warn("response_body_close_failed",
+				zap.Error(closeErr),
+				zap.String("component", "health_client"),
+			)
 		}
 	}()
 
@@ -163,7 +187,10 @@ func (hc *healthClient) performHealthCheck(ctx context.Context, url string) (suc
 	// Read response body (limited to prevent memory exhaustion)
 	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 4096)) // Limit to 4KB
 	if err != nil {
-		hc.logger.Warn("Failed to read response body", "error", err)
+		hc.logger.Warn("response_body_read_failed",
+			zap.Error(err),
+			zap.String("component", "health_client"),
+		)
 		responseBody = "<failed to read response>"
 	} else {
 		responseBody = string(bodyBytes)

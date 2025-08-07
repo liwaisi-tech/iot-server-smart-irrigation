@@ -3,7 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
-	"log/slog"
+
+	"go.uber.org/zap"
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/database"
 	infrahttp "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/http"
@@ -14,30 +15,36 @@ import (
 	deviceregistration "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/device_registration"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/ping"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/config"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
 // Container holds all the application dependencies
 type Container struct {
 	config   *config.AppConfig
-	logger   *slog.Logger
+	logger   *logger.IoTLogger
 	services *Services
 	cleanup  []func() error
 }
 
 // NewContainer creates a new dependency injection container
-func NewContainer(cfg *config.AppConfig, logger *slog.Logger) (*Container, error) {
+func NewContainer(cfg *config.AppConfig, iotLogger *logger.IoTLogger) (*Container, error) {
 	container := &Container{
 		config:  cfg,
-		logger:  logger,
+		logger:  iotLogger,
 		cleanup: make([]func() error, 0),
 	}
 
 	services, err := container.buildServices()
 	if err != nil {
+		iotLogger.Error("container_services_build_failed",
+			zap.Error(err),
+			zap.String("component", "container"),
+		)
 		return nil, fmt.Errorf("failed to build services: %w", err)
 	}
 
 	container.services = services
+	iotLogger.LogApplicationEvent("container_initialized", "container")
 	return container, nil
 }
 
@@ -48,16 +55,20 @@ func (c *Container) GetServices() *Services {
 
 // Cleanup runs all cleanup functions
 func (c *Container) Cleanup() error {
-	c.logger.Info("Running container cleanup")
+	c.logger.LogApplicationEvent("container_cleanup_starting", "container")
 	
 	for i := len(c.cleanup) - 1; i >= 0; i-- {
 		if err := c.cleanup[i](); err != nil {
-			c.logger.Error("Error during cleanup", "error", err)
+			c.logger.Error("container_cleanup_error",
+				zap.Error(err),
+				zap.Int("cleanup_step", i),
+				zap.String("component", "container"),
+			)
 			return err
 		}
 	}
 	
-	c.logger.Info("Container cleanup completed")
+	c.logger.LogApplicationEvent("container_cleanup_completed", "container")
 	return nil
 }
 
@@ -100,31 +111,41 @@ func (c *Container) buildInfrastructure(services *Services) error {
 
 // buildRepository builds the device repository
 func (c *Container) buildRepository(services *Services) error {
-	c.logger.Info("Initializing database repository")
+	c.logger.LogApplicationEvent("database_repository_initializing", "container")
 
 	// Initialize GORM database
 	gormDB, err := database.NewGormPostgresDB(&c.config.Database)
 	if err != nil {
+		c.logger.Error("database_initialization_failed",
+			zap.Error(err),
+			zap.String("host", c.config.Database.Host),
+			zap.Int("port", c.config.Database.Port),
+			zap.String("component", "container"),
+		)
 		return fmt.Errorf("failed to initialize database: %w", err)
 	}
 
 	// Run migrations
-	c.logger.Info("Running database migrations")
+	c.logger.LogApplicationEvent("database_migrations_running", "container")
 	if err := gormDB.AutoMigrate(); err != nil {
+		c.logger.Error("database_migrations_failed",
+			zap.Error(err),
+			zap.String("component", "container"),
+		)
 		gormDB.Close()
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	// Initialize repository
-	services.DeviceRepository = postgres.NewDeviceRepository(gormDB)
+	services.DeviceRepository = postgres.NewDeviceRepository(gormDB, c.logger)
 
 	// Register cleanup
 	c.cleanup = append(c.cleanup, func() error {
-		c.logger.Info("Closing database connection")
+		c.logger.LogApplicationEvent("database_connection_closing", "container")
 		return gormDB.Close()
 	})
 
-	c.logger.Info("Database repository initialized successfully")
+	c.logger.LogApplicationEvent("database_repository_initialized", "container")
 	return nil
 }
 
@@ -143,7 +164,10 @@ func (c *Container) buildMessaging(services *Services) error {
 
 // buildMQTTConsumer builds the MQTT consumer
 func (c *Container) buildMQTTConsumer(services *Services) error {
-	c.logger.Info("Initializing MQTT consumer")
+	c.logger.LogApplicationEvent("mqtt_consumer_initializing", "container",
+		zap.String("broker_url", c.config.MQTT.BrokerURL),
+		zap.String("client_id", c.config.MQTT.ClientID),
+	)
 
 	mqttConfig := messagingmqtt.MQTTConsumerConfig{
 		BrokerURL:            c.config.MQTT.BrokerURL,
@@ -157,8 +181,8 @@ func (c *Container) buildMQTTConsumer(services *Services) error {
 		MaxReconnectInterval: c.config.MQTT.MaxReconnectInterval,
 	}
 
-	services.MQTTConsumer = messagingmqtt.NewMQTTConsumer(mqttConfig)
-	c.logger.Info("MQTT consumer initialized successfully")
+	services.MQTTConsumer = messagingmqtt.NewMQTTConsumer(mqttConfig, c.logger)
+	c.logger.LogApplicationEvent("mqtt_consumer_initialized", "container")
 	return nil
 }
 
@@ -171,32 +195,50 @@ func (c *Container) buildNATSComponents(services *Services) {
 	if len(c.config.NATS.URLs) > 0 {
 		natsConfig.URL = c.config.NATS.URLs[0] // Use first URL for now
 	}
+	// Configure other NATS settings
+	natsConfig.MaxReconnectAttempts = c.config.NATS.MaxReconnect
+	natsConfig.ReconnectWait = c.config.NATS.ReconnectWait
+	natsConfig.ConnectTimeout = c.config.NATS.Timeout
+	natsConfig.PingInterval = c.config.NATS.PingInterval
+	natsConfig.MaxPingsOutstanding = c.config.NATS.MaxPingsOut
 
 	// Build NATS Publisher
 	if natsPublisher, err := messagingnats.NewNATSPublisher(natsConfig, c.logger); err != nil {
-		c.logger.Warn("Failed to initialize NATS publisher", "error", err)
+		c.logger.Warn("nats_publisher_initialization_failed",
+			zap.Error(err),
+			zap.String("url", natsConfig.URL),
+			zap.String("component", "container"),
+		)
 		services.NATSPublisher = nil
 	} else {
 		services.NATSPublisher = natsPublisher
 		c.cleanup = append(c.cleanup, func() error {
 			return natsPublisher.Close(context.TODO())
 		})
-		c.logger.Info("NATS publisher initialized successfully")
+		c.logger.LogApplicationEvent("nats_publisher_initialized", "container",
+			zap.String("url", natsConfig.URL),
+		)
 	}
 
 	// Build NATS Subscriber
 	if natsSubscriber, err := messagingnats.NewNATSSubscriber(natsConfig, c.logger); err != nil {
-		c.logger.Warn("Failed to initialize NATS subscriber", "error", err)
+		c.logger.Warn("nats_subscriber_initialization_failed",
+			zap.Error(err),
+			zap.String("url", natsConfig.URL),
+			zap.String("component", "container"),
+		)
 		services.NATSSubscriber = nil
 	} else {
 		services.NATSSubscriber = natsSubscriber
-		c.logger.Info("NATS subscriber initialized successfully")
+		c.logger.LogApplicationEvent("nats_subscriber_initialized", "container",
+			zap.String("url", natsConfig.URL),
+		)
 	}
 }
 
 // buildExternalDependencies builds external API clients
 func (c *Container) buildExternalDependencies(services *Services) error {
-	c.logger.Info("Initializing external dependencies")
+	c.logger.LogApplicationEvent("external_dependencies_initializing", "container")
 
 	// Build health checker
 	healthConfig := &infrahttp.HealthClientConfig{
@@ -207,14 +249,17 @@ func (c *Container) buildExternalDependencies(services *Services) error {
 	}
 	
 	services.HealthChecker = infrahttp.NewHealthClient(healthConfig, c.logger)
-	c.logger.Info("Health checker initialized successfully")
+	c.logger.LogApplicationEvent("health_checker_initialized", "container",
+		zap.Duration("timeout", c.config.HealthCheck.Timeout),
+		zap.Int("retry_attempts", c.config.HealthCheck.RetryAttempts),
+	)
 
 	return nil
 }
 
 // buildUseCases builds all use case implementations
 func (c *Container) buildUseCases(services *Services) error {
-	c.logger.Info("Initializing use cases")
+	c.logger.LogApplicationEvent("use_cases_initializing", "container")
 
 	// Build Ping Use Case
 	services.PingUseCase = ping.NewUseCase()
@@ -223,6 +268,7 @@ func (c *Container) buildUseCases(services *Services) error {
 	services.DeviceRegistrationUseCase = deviceregistration.NewDeviceRegistrationUseCase(
 		services.DeviceRepository,
 		services.NATSPublisher,
+		c.logger,
 	)
 
 	// Build Device Health Use Case
@@ -234,6 +280,6 @@ func (c *Container) buildUseCases(services *Services) error {
 		c.logger,
 	)
 
-	c.logger.Info("Use cases initialized successfully")
+	c.logger.LogApplicationEvent("use_cases_initialized", "container")
 	return nil
 }

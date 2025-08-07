@@ -11,12 +11,21 @@ import (
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/entities"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/mocks"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
+
+// createTestLogger creates a test logger for use in tests
+func createTestLogger(t *testing.T) *logger.IoTLogger {
+	testLogger, err := logger.NewDevelopmentLogger()
+	assert.NoError(t, err)
+	assert.NotNil(t, testLogger)
+	return testLogger
+}
 
 func TestNewUseCase(t *testing.T) {
 	mockRepo := mocks.NewMockDeviceRepository(t)
 
-	useCase := NewDeviceRegistrationUseCase(mockRepo, nil)
+	useCase := NewDeviceRegistrationUseCase(mockRepo, nil, createTestLogger(t))
 
 	assert.NotNil(t, useCase)
 	// Note: Cannot directly access private fields in the updated implementation
@@ -86,7 +95,7 @@ func TestUseCase_RegisterDevice_NewDevice(t *testing.T) {
 			mockRepo := mocks.NewMockDeviceRepository(t)
 			tt.setup(mockRepo)
 
-			useCase := NewDeviceRegistrationUseCase(mockRepo, nil)
+			useCase := NewDeviceRegistrationUseCase(mockRepo, nil, createTestLogger(t))
 			err := useCase.RegisterDevice(context.Background(), tt.message)
 
 			if tt.wantErr {
@@ -206,7 +215,7 @@ func TestUseCase_RegisterDevice_ExistingDevice(t *testing.T) {
 			mockRepo := mocks.NewMockDeviceRepository(t)
 			tt.setup(mockRepo)
 
-			useCase := NewDeviceRegistrationUseCase(mockRepo, nil)
+			useCase := NewDeviceRegistrationUseCase(mockRepo, nil, createTestLogger(t))
 			err := useCase.RegisterDevice(context.Background(), tt.message)
 
 			if tt.wantErr {
@@ -274,7 +283,7 @@ func TestUseCase_createNewDevice(t *testing.T) {
 			mockRepo := mocks.NewMockDeviceRepository(t)
 			tt.setup(mockRepo)
 
-			useCase := NewDeviceRegistrationUseCase(mockRepo, nil)
+			useCase := NewDeviceRegistrationUseCase(mockRepo, nil, createTestLogger(t))
 			err := useCase.createNewDevice(context.Background(), tt.message)
 
 			if tt.wantErr {
@@ -364,7 +373,7 @@ func TestUseCase_updateExistingDevice(t *testing.T) {
 			mockRepo := mocks.NewMockDeviceRepository(t)
 			tt.setup(mockRepo)
 
-			useCase := NewDeviceRegistrationUseCase(mockRepo, nil)
+			useCase := NewDeviceRegistrationUseCase(mockRepo, nil, createTestLogger(t))
 			err := useCase.updateExistingDevice(context.Background(), tt.existingDevice, tt.message)
 
 			if tt.wantErr {
@@ -381,7 +390,7 @@ func TestUseCase_updateExistingDevice(t *testing.T) {
 
 func TestNewMessageHandler(t *testing.T) {
 	mockRepo := mocks.NewMockDeviceRepository(t)
-	useCase := NewDeviceRegistrationUseCase(mockRepo, nil)
+	useCase := NewDeviceRegistrationUseCase(mockRepo, nil, createTestLogger(t))
 
 	handler := NewMessageHandler(useCase)
 
@@ -453,7 +462,7 @@ func TestMessageHandler_HandleDeviceRegistration(t *testing.T) {
 			mockRepo := mocks.NewMockDeviceRepository(t)
 			tt.setup(mockRepo)
 
-			useCase := NewDeviceRegistrationUseCase(mockRepo, nil)
+			useCase := NewDeviceRegistrationUseCase(mockRepo, nil, createTestLogger(t))
 			handler := NewMessageHandler(useCase)
 
 			err := handler.HandleDeviceRegistration(context.Background(), tt.message)
@@ -474,7 +483,7 @@ func TestMessageHandler_HandleDeviceRegistration(t *testing.T) {
 func TestUseCase_RegisterDevice_EdgeCases(t *testing.T) {
 	t.Run("nil message", func(t *testing.T) {
 		mockRepo := mocks.NewMockDeviceRepository(t)
-		useCase := NewDeviceRegistrationUseCase(mockRepo, nil)
+		useCase := NewDeviceRegistrationUseCase(mockRepo, nil, createTestLogger(t))
 
 		// This should panic or be handled gracefully depending on implementation
 		// Since the current implementation doesn't check for nil, this is more of a documentation test
@@ -498,7 +507,7 @@ func TestUseCase_RegisterDevice_EdgeCases(t *testing.T) {
 			Return(context.Canceled).
 			Once()
 
-		useCase := NewDeviceRegistrationUseCase(mockRepo, nil)
+		useCase := NewDeviceRegistrationUseCase(mockRepo, nil, createTestLogger(t))
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
@@ -533,7 +542,7 @@ func BenchmarkUseCase_RegisterDevice_NewDevice(b *testing.B) {
 		Return(nil).
 		Times(b.N)
 
-	useCase := NewDeviceRegistrationUseCase(mockRepo, nil)
+	useCase := NewDeviceRegistrationUseCase(mockRepo, nil, createTestLogger(&testing.T{}))
 	message := &entities.DeviceRegistrationMessage{
 		MACAddress:          "AA:BB:CC:DD:EE:FF",
 		DeviceName:          "Test Device",
@@ -572,7 +581,7 @@ func BenchmarkUseCase_RegisterDevice_ExistingDevice(b *testing.B) {
 		Return(nil).
 		Times(b.N)
 
-	useCase := NewDeviceRegistrationUseCase(mockRepo, nil)
+	useCase := NewDeviceRegistrationUseCase(mockRepo, nil, createTestLogger(&testing.T{}))
 	message := &entities.DeviceRegistrationMessage{
 		MACAddress:          "AA:BB:CC:DD:EE:FF",
 		DeviceName:          "Updated Device",
