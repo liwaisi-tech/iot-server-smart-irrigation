@@ -21,7 +21,8 @@ type Device struct {
 	Status              string // "registered", "online", "offline"
 }
 
-// NewDevice creates a new device with validation
+
+// NewDevice creates a new device with validation and normalization
 func NewDevice(macAddress, deviceName, ipAddress, locationDescription string) (*Device, error) {
 	now := time.Now()
 	device := &Device{
@@ -39,6 +40,17 @@ func NewDevice(macAddress, deviceName, ipAddress, locationDescription string) (*
 	}
 
 	return device, nil
+}
+
+// Normalize ensures all fields are properly formatted and trimmed
+func (d *Device) Normalize() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	
+	d.MACAddress = strings.ToUpper(strings.TrimSpace(d.MACAddress))
+	d.DeviceName = strings.TrimSpace(d.DeviceName)
+	d.IPAddress = strings.TrimSpace(d.IPAddress)
+	d.LocationDescription = strings.TrimSpace(d.LocationDescription)
 }
 
 // Validate validates the device fields

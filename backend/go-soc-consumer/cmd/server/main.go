@@ -12,11 +12,14 @@ import (
 	"time"
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/database"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/messaging"
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/persistence"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/persistence/memory"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/persistence/postgres"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/presentation/http/handlers"
 	deviceregistration "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/device_registration"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/ping"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/config"
 )
 
 func main() {
@@ -148,10 +151,57 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-// initializeRepository initializes the device repository with memory database as default
+// initializeRepository initializes the device repository with GORM PostgreSQL or fallback to in-memory
 func initializeRepository(logger *slog.Logger) (ports.DeviceRepository, func(), error) {
+	// Check if database configuration is provided
+	dbConfig := config.NewDatabaseConfig()
+	
+	// Try to initialize PostgreSQL with GORM
+	if dbConfig.Host != "localhost" || os.Getenv("DB_HOST") != "" {
+		logger.Info("Initializing GORM PostgreSQL repository", 
+			slog.String("host", dbConfig.Host),
+			slog.Int("port", dbConfig.Port),
+			slog.String("database", dbConfig.Name))
+		
+		// Initialize GORM database
+		gormDB, err := database.NewGormPostgresDB(dbConfig)
+		if err != nil {
+			logger.Error("Failed to initialize GORM PostgreSQL database", slog.String("error", err.Error()))
+			logger.Info("Falling back to in-memory repository")
+			return initializeInMemoryRepository(logger)
+		}
+		
+		// Run clean GORM auto-migrations
+		logger.Info("Running GORM auto-migrations")
+		if err := gormDB.AutoMigrate(); err != nil {
+			logger.Error("Failed to run GORM auto-migrations", slog.String("error", err.Error()))
+			gormDB.Close()
+			logger.Info("Falling back to in-memory repository")
+			return initializeInMemoryRepository(logger)
+		}
+		
+		// Initialize GORM repository
+		repo := postgres.NewDeviceRepository(gormDB)
+		cleanup := func() {
+			logger.Info("Closing GORM database connection")
+			if err := gormDB.Close(); err != nil {
+				logger.Error("Error closing GORM database", slog.String("error", err.Error()))
+			}
+		}
+		
+		logger.Info("GORM PostgreSQL repository initialized successfully")
+		return repo, cleanup, nil
+	}
+	
+	// Fallback to in-memory repository
+	logger.Info("No database configuration found, using in-memory repository")
+	return initializeInMemoryRepository(logger)
+}
+
+// initializeInMemoryRepository initializes the in-memory repository as fallback
+func initializeInMemoryRepository(logger *slog.Logger) (ports.DeviceRepository, func(), error) {
 	logger.Info("Initializing in-memory repository")
-	repo := persistence.NewMemoryDeviceRepository()
+	repo := memory.NewDeviceRepository()
 	logger.Info("In-memory repository initialized successfully")
 	return repo, nil, nil
 }
