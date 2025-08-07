@@ -717,6 +717,6 @@ func BenchmarkMQTTConsumer_MessageHandling(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		testHandler(context.Background(), "test/topic", []byte("test payload"))
+		_ = testHandler(context.Background(), "test/topic", []byte("test payload")) // Ignore error in benchmark
 	}
 }

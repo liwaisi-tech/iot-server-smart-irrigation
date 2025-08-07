@@ -16,10 +16,10 @@ import (
 
 // HealthClientConfig holds configuration for the health checker
 type HealthClientConfig struct {
-	Timeout        time.Duration
-	RetryAttempts  int
-	InitialDelay   time.Duration
-	UserAgent      string
+	Timeout       time.Duration
+	RetryAttempts int
+	InitialDelay  time.Duration
+	UserAgent     string
 }
 
 // DefaultHealthClientConfig returns default configuration for the health client
@@ -44,7 +44,7 @@ func NewHealthClient(config *HealthClientConfig, iotLogger *logger.IoTLogger) po
 	if config == nil {
 		config = DefaultHealthClientConfig()
 	}
-	
+
 	if iotLogger == nil {
 		defaultLogger, err := logger.NewDefaultLogger()
 		if err != nil {
@@ -64,14 +64,7 @@ func NewHealthClient(config *HealthClientConfig, iotLogger *logger.IoTLogger) po
 }
 
 // CheckHealth performs a health check with retry logic and exponential backoff
-func (hc *healthClient) CheckHealth(ctx context.Context, ipAddress string) (*ports.HealthCheckResult, error) {
-	result := &ports.HealthCheckResult{
-		IPAddress: ipAddress,
-		CheckedAt: time.Now(),
-		Attempts:  0,
-		Success:   false,
-	}
-
+func (hc *healthClient) CheckHealth(ctx context.Context, ipAddress string) (isAlive bool, err error) {
 	url := fmt.Sprintf("http://%s/whoami", ipAddress)
 	hc.logger.Info("health_check_starting",
 		zap.String("ip_address", ipAddress),
@@ -83,18 +76,11 @@ func (hc *healthClient) CheckHealth(ctx context.Context, ipAddress string) (*por
 	delay := hc.config.InitialDelay
 
 	for attempt := 1; attempt <= hc.config.RetryAttempts; attempt++ {
-		result.Attempts = attempt
-		
 		start := time.Now()
 		success, statusCode, responseBody, err := hc.performHealthCheck(ctx, url)
 		duration := time.Since(start)
-		
-		result.Duration = duration
-		result.StatusCode = statusCode
-		result.ResponseBody = responseBody
 
 		if success {
-			result.Success = true
 			hc.logger.Info("health_check_succeeded",
 				zap.String("ip_address", ipAddress),
 				zap.Int("attempt", attempt),
@@ -103,12 +89,11 @@ func (hc *healthClient) CheckHealth(ctx context.Context, ipAddress string) (*por
 				zap.String("response_body", responseBody),
 				zap.String("component", "health_client"),
 			)
-			return result, nil
+			return true, nil
 		}
 
 		lastErr = err
 		if err != nil {
-			result.Error = err.Error()
 			hc.logger.Warn("health_check_attempt_failed",
 				zap.String("ip_address", ipAddress),
 				zap.Int("attempt", attempt),
@@ -118,7 +103,6 @@ func (hc *healthClient) CheckHealth(ctx context.Context, ipAddress string) (*por
 				zap.String("component", "health_client"),
 			)
 		} else {
-			result.Error = fmt.Sprintf("HTTP status %d (expected 200)", statusCode)
 			hc.logger.Warn("health_check_attempt_wrong_status",
 				zap.String("ip_address", ipAddress),
 				zap.Int("attempt", attempt),
@@ -137,11 +121,10 @@ func (hc *healthClient) CheckHealth(ctx context.Context, ipAddress string) (*por
 				zap.Int("next_attempt", attempt+1),
 				zap.String("component", "health_client"),
 			)
-			
+
 			select {
 			case <-ctx.Done():
-				result.Error = fmt.Sprintf("context cancelled after %d attempts: %v", attempt, ctx.Err())
-				return result, ctx.Err()
+				return false, ctx.Err()
 			case <-time.After(delay):
 				// Exponential backoff: double the delay for next attempt
 				delay *= 2
@@ -155,8 +138,8 @@ func (hc *healthClient) CheckHealth(ctx context.Context, ipAddress string) (*por
 		zap.Error(lastErr),
 		zap.String("component", "health_client"),
 	)
-	
-	return result, lastErr
+
+	return false, lastErr
 }
 
 // performHealthCheck makes a single HTTP request to the device
@@ -183,7 +166,7 @@ func (hc *healthClient) performHealthCheck(ctx context.Context, url string) (suc
 	}()
 
 	statusCode = resp.StatusCode
-	
+
 	// Read response body (limited to prevent memory exhaustion)
 	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 4096)) // Limit to 4KB
 	if err != nil {
@@ -198,10 +181,10 @@ func (hc *healthClient) performHealthCheck(ctx context.Context, url string) (suc
 
 	// Success is determined by HTTP status code 200 only
 	success = statusCode == http.StatusOK
-	
+
 	if !success && err == nil {
-		err = fmt.Errorf("HTTP status %s (%s)", 
-			strconv.Itoa(statusCode), 
+		err = fmt.Errorf("HTTP status %s (%s)",
+			strconv.Itoa(statusCode),
 			http.StatusText(statusCode))
 	}
 

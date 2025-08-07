@@ -634,7 +634,7 @@ func TestDevice_ConcurrentAccess(t *testing.T) {
 			// Mix of read and write operations
 			switch id % 5 {
 			case 0:
-				device.UpdateStatus("online")
+				_ = device.UpdateStatus("online") // Ignore error in test
 			case 1:
 				device.GetStatus()
 			case 2:
@@ -668,9 +668,9 @@ func TestDevice_UpdateStatus_RaceCondition(t *testing.T) {
 			defer wg.Done()
 			
 			if id%2 == 0 {
-				device.UpdateStatus("online")
+				_ = device.UpdateStatus("online") // Ignore error in test
 			} else {
-				device.UpdateStatus("offline")
+				_ = device.UpdateStatus("offline") // Ignore error in test
 			}
 		}(i)
 	}

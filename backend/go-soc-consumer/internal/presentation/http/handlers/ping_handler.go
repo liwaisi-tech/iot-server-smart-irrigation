@@ -23,5 +23,10 @@ func (h *PingHandler) Ping(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(response))
+	if _, err := w.Write([]byte(response)); err != nil {
+		// Log the error if we can't write the response
+		// In a real application, you might want to use a proper logger here
+		http.Error(w, "failed to write response", http.StatusInternalServerError)
+		return
+	}
 }
