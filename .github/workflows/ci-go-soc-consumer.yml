@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ["1.22", "1.23"]
+        go-version: ["1.23", "1.24"]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Go
@@ -88,7 +88,7 @@ jobs:
         run: make build
         working-directory: backend/go-soc-consumer
       - name: Upload build artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: iot-consumer
           path: backend/go-soc-consumer/bin/iot-consumer
