@@ -18,9 +18,6 @@ func TestDefaultHealthCheckConfig(t *testing.T) {
 	config := DefaultHealthCheckConfig()
 
 	require.NotNil(t, config)
-	assert.Equal(t, 2*time.Minute, config.CooldownPeriod)
-	assert.Equal(t, 5*time.Minute, config.DeduplicationWindow)
-	assert.Equal(t, 10*time.Minute, config.CleanupInterval)
 	assert.Equal(t, 10, config.MaxConcurrent)
 }
 
@@ -28,8 +25,7 @@ func TestNewDeviceHealthUseCase(t *testing.T) {
 	repo := &mocks.MockDeviceRepository{}
 	checker := &mocks.MockDeviceHealthChecker{}
 	config := &HealthCheckConfig{
-		MaxConcurrent:   5,
-		CleanupInterval: 1 * time.Minute,
+		MaxConcurrent: 5,
 	}
 	testLogger, err := logger.NewDevelopmentLogger()
 	assert.NoError(t, err)
@@ -44,7 +40,6 @@ func TestNewDeviceHealthUseCase(t *testing.T) {
 	assert.Equal(t, config, impl.config)
 	assert.Equal(t, testLogger, impl.logger)
 	assert.NotNil(t, impl.semaphore)
-	assert.NotNil(t, impl.cleanupDone)
 }
 
 func TestNewDeviceHealthUseCase_NilConfig(t *testing.T) {
@@ -59,7 +54,6 @@ func TestNewDeviceHealthUseCase_NilConfig(t *testing.T) {
 	// Should use default config
 	defaultConfig := DefaultHealthCheckConfig()
 	assert.Equal(t, defaultConfig.MaxConcurrent, impl.config.MaxConcurrent)
-	assert.Equal(t, defaultConfig.CleanupInterval, impl.config.CleanupInterval)
 
 	// Should use default logger
 	assert.NotNil(t, impl.logger)
@@ -321,70 +315,4 @@ func TestSemaphore_ContextCancellation(t *testing.T) {
 	// If the semaphore is available immediately, it will proceed with the health check.
 	// This test would need more complex setup to actually test the cancellation behavior effectively.
 	t.Skip("Context cancellation test requires complex setup to block semaphore acquisition")
-}
-
-func TestStartCleanup_Lifecycle(t *testing.T) {
-	repo := &mocks.MockDeviceRepository{}
-	checker := &mocks.MockDeviceHealthChecker{}
-
-	config := &HealthCheckConfig{CleanupInterval: 100 * time.Millisecond}
-	uc := NewDeviceHealthUseCase(repo, checker, config, nil)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Start cleanup
-	uc.StartCleanup(ctx)
-
-	// Verify cleanup ticker is running
-	impl := uc.(*useCaseImpl)
-	assert.NotNil(t, impl.cleanupTicker)
-
-	// Wait for at least one cleanup cycle
-	time.Sleep(200 * time.Millisecond)
-
-	// Stop cleanup
-	uc.StopCleanup()
-
-	// Verify cleanup stopped
-	time.Sleep(50 * time.Millisecond)
-}
-
-func TestStopCleanup(t *testing.T) {
-	repo := &mocks.MockDeviceRepository{}
-	checker := &mocks.MockDeviceHealthChecker{}
-	uc := NewDeviceHealthUseCase(repo, checker, nil, nil)
-
-	// Start cleanup first
-	ctx := context.Background()
-	uc.StartCleanup(ctx)
-
-	impl := uc.(*useCaseImpl)
-	assert.NotNil(t, impl.cleanupTicker)
-
-	// Stop cleanup
-	uc.StopCleanup()
-
-	// Give time for cleanup to stop
-	time.Sleep(50 * time.Millisecond)
-}
-
-func TestStartCleanup_OncePattern(t *testing.T) {
-	repo := &mocks.MockDeviceRepository{}
-	checker := &mocks.MockDeviceHealthChecker{}
-	uc := NewDeviceHealthUseCase(repo, checker, nil, nil)
-
-	ctx := context.Background()
-
-	// Call StartCleanup multiple times
-	uc.StartCleanup(ctx)
-	uc.StartCleanup(ctx)
-	uc.StartCleanup(ctx)
-
-	impl := uc.(*useCaseImpl)
-
-	// Should only create one ticker due to sync.Once
-	assert.NotNil(t, impl.cleanupTicker)
-
-	uc.StopCleanup()
 }

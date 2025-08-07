@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -105,9 +104,6 @@ func (a *Application) Start(ctx context.Context) error {
 func (a *Application) Stop(ctx context.Context) error {
 	a.logger.LogApplicationEvent("application_services_stopping", "application")
 
-	// Stop background services first
-	a.stopBackgroundServices()
-
 	// Stop message consumers
 	if err := a.stopMessageConsumers(ctx); err != nil {
 		a.logger.Error("message_consumers_stop_error",
@@ -136,15 +132,4 @@ func (a *Application) Stop(ctx context.Context) error {
 
 	a.logger.LogApplicationEvent("application_services_stopped", "application")
 	return nil
-}
-
-// Health returns the health status of all services
-func (a *Application) Health(ctx context.Context) map[string]interface{} {
-	health := make(map[string]interface{})
-	
-	// Add individual service health checks here
-	health["status"] = "ok"
-	health["timestamp"] = time.Now()
-	
-	return health
 }

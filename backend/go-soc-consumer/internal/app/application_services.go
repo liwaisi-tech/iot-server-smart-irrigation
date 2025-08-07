@@ -21,7 +21,7 @@ func (a *Application) initializeServices() error {
 	}
 
 	a.services = container.GetServices()
-	
+
 	// Store cleanup function
 	a.cleanup = func() error {
 		return container.Cleanup()
@@ -66,7 +66,7 @@ func (a *Application) startMessageConsumers(ctx context.Context) error {
 	// Subscribe to device registration topic
 	deviceRegistrationHandler := messaginghandlers.NewDeviceRegistrationHandler(a.services.DeviceRegistrationUseCase)
 	deviceRegistrationTopic := "/liwaisi/iot/smart-irrigation/device/registration"
-	
+
 	a.logger.LogApplicationEvent("mqtt_topic_subscribing", "application",
 		zap.String("topic", deviceRegistrationTopic),
 		zap.String("handler", "device_registration"),
@@ -92,7 +92,7 @@ func (a *Application) startMessageConsumers(ctx context.Context) error {
 			// Subscribe to device detected events
 			deviceHealthHandler := natshandlers.NewDeviceHealthHandler(a.services.DeviceHealthUseCase)
 			deviceDetectedSubject := events.DeviceDetectedSubject
-			
+
 			a.logger.LogApplicationEvent("nats_subject_subscribing", "application",
 				zap.String("subject", deviceDetectedSubject),
 				zap.String("handler", "device_health"),
@@ -138,7 +138,6 @@ func (a *Application) startBackgroundServices(ctx context.Context) error {
 	// Start health monitoring if NATS subscriber is available
 	if a.services.NATSSubscriber != nil && a.services.DeviceHealthUseCase != nil {
 		a.logger.LogApplicationEvent("background_health_monitoring_starting", "application")
-		a.services.DeviceHealthUseCase.StartCleanup(ctx)
 	}
 
 	return nil
@@ -173,7 +172,7 @@ func (a *Application) stopMessageConsumers(ctx context.Context) error {
 // stopHTTPServer gracefully shuts down the HTTP server
 func (a *Application) stopHTTPServer(ctx context.Context) error {
 	a.logger.LogApplicationEvent("http_server_stopping", "application")
-	
+
 	if err := a.server.Shutdown(ctx); err != nil {
 		a.logger.Error("http_server_shutdown_error",
 			zap.Error(err),
@@ -184,14 +183,3 @@ func (a *Application) stopHTTPServer(ctx context.Context) error {
 
 	return nil
 }
-
-// stopBackgroundServices stops all background services
-func (a *Application) stopBackgroundServices() {
-	a.logger.LogApplicationEvent("background_services_stopping", "application")
-	
-	// Stop health check cleanup
-	if a.services.DeviceHealthUseCase != nil {
-		a.services.DeviceHealthUseCase.StopCleanup()
-	}
-}
-
