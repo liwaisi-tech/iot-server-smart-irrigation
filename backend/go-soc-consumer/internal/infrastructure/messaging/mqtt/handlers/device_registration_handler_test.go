@@ -18,7 +18,8 @@ import (
 func TestNewDeviceRegistrationHandler(t *testing.T) {
 	// Create a real use case with a mock repository for testing
 	mockRepo := mocks.NewMockDeviceRepository(t)
-	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo)
+	mockPublisher := mocks.NewMockEventPublisher(t)
+	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo, mockPublisher)
 	handler := NewDeviceRegistrationHandler(realUseCase)
 
 	assert.NotNil(t, handler, "NewDeviceRegistrationHandler() returned nil")
@@ -397,7 +398,8 @@ func TestDeviceRegistrationHandler_Integration(t *testing.T) {
 func TestDeviceRegistrationHandler_RealUseCaseIntegration(t *testing.T) {
 	// This test uses a real use case with mock repository to test full integration
 	mockRepo := mocks.NewMockDeviceRepository(t)
-	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo)
+	mockPublisher := mocks.NewMockEventPublisher(t)
+	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo, mockPublisher)
 	handler := NewDeviceRegistrationHandler(realUseCase)
 
 	payload := map[string]interface{}{
@@ -416,6 +418,11 @@ func TestDeviceRegistrationHandler_RealUseCaseIntegration(t *testing.T) {
 			device.IPAddress == "192.168.1.250" &&
 			device.Status == "registered"
 	})).Return(nil).Once()
+	
+	// Add missing IsConnected expectation for EventPublisher
+	mockPublisher.EXPECT().IsConnected().Return(true).Maybe()
+	// Add missing Publish expectation for EventPublisher
+	mockPublisher.EXPECT().Publish(mock.Anything, "liwaisi.iot.smart-irrigation.device.detected", mock.Anything).Return(nil).Maybe()
 
 	payloadBytes, err := json.Marshal(payload)
 	require.NoError(t, err, "Failed to marshal payload")

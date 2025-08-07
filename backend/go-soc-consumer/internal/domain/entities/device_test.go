@@ -2,6 +2,7 @@ package entities
 
 import (
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -206,14 +207,14 @@ func TestNewDevice(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			beforeTime := time.Now()
-			
+
 			device, err := NewDevice(
 				tt.macAddress,
 				tt.deviceName,
 				tt.ipAddress,
 				tt.locationDescription,
 			)
-			
+
 			afterTime := time.Now()
 
 			if tt.wantError {
@@ -341,9 +342,9 @@ func TestDevice_validateIPAddress(t *testing.T) {
 
 func TestDevice_validateLocationDescription(t *testing.T) {
 	tests := []struct {
-		name        string
-		location    string
-		wantError   bool
+		name      string
+		location  string
+		wantError bool
 	}{
 		{"valid short location", "Garden", false},
 		{"valid long location", "Very detailed location description with many words", false},
@@ -423,9 +424,9 @@ func TestDevice_UpdateStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			originalLastSeen := device.LastSeen
 			beforeTime := time.Now()
-			
+
 			err := device.UpdateStatus(tt.status)
-			
+
 			afterTime := time.Now()
 
 			if tt.wantError {
@@ -531,8 +532,8 @@ func TestDevice_GetID(t *testing.T) {
 
 func TestDevice_Validate(t *testing.T) {
 	tests := []struct {
-		name   string
-		device *Device
+		name      string
+		device    *Device
 		wantError bool
 	}{
 		{
@@ -614,4 +615,104 @@ func TestDevice_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Thread Safety Tests
+func TestDevice_ConcurrentAccess(t *testing.T) {
+	device, err := NewDevice("AA:BB:CC:DD:EE:FF", "Test Device", "192.168.1.100", "Test Location")
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	numGoroutines := 100
+
+	// Test concurrent read and write operations
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			
+			// Mix of read and write operations
+			switch id % 5 {
+			case 0:
+				device.UpdateStatus("online")
+			case 1:
+				device.GetStatus()
+			case 2:
+				device.MarkOffline()
+			case 3:
+				device.IsOnline()
+			case 4:
+				device.GetLastSeen()
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	
+	// Verify device is still in valid state
+	assert.NotEmpty(t, device.GetStatus())
+	assert.Contains(t, []string{"online", "offline", "registered"}, device.GetStatus())
+}
+
+func TestDevice_UpdateStatus_RaceCondition(t *testing.T) {
+	device, err := NewDevice("AA:BB:CC:DD:EE:FF", "Test Device", "192.168.1.100", "Test Location")
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	numGoroutines := 50
+
+	// Test concurrent status updates
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			
+			if id%2 == 0 {
+				device.UpdateStatus("online")
+			} else {
+				device.UpdateStatus("offline")
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	
+	// Verify final state is valid
+	status := device.GetStatus()
+	assert.Contains(t, []string{"online", "offline"}, status)
+	
+	// Verify LastSeen was updated
+	assert.False(t, device.GetLastSeen().IsZero())
+}
+
+func TestDevice_Getters_ThreadSafety(t *testing.T) {
+	device, err := NewDevice("AA:BB:CC:DD:EE:FF", "Test Device", "192.168.1.100", "Test Location")
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	numGoroutines := 100
+
+	// Test concurrent getter operations (should be safe with RLock)
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			
+			// Multiple concurrent read operations
+			device.GetID()
+			device.GetDeviceName()
+			device.GetIPAddress()
+			device.GetStatus()
+			device.GetLastSeen()
+			device.IsOnline()
+			device.IsOffline()
+		}()
+	}
+
+	wg.Wait()
+	
+	// All reads should succeed without data races
+	assert.Equal(t, "AA:BB:CC:DD:EE:FF", device.GetID())
+	assert.Equal(t, "Test Device", device.GetDeviceName())
+	assert.Equal(t, "192.168.1.100", device.GetIPAddress())
 }

@@ -1,4 +1,4 @@
-package messaging
+package mqtt
 
 import (
 	"context"
@@ -13,14 +13,14 @@ import (
 
 // MQTTConsumerConfig holds configuration for MQTT consumer
 type MQTTConsumerConfig struct {
-	BrokerURL       string
-	ClientID        string
-	Username        string
-	Password        string
-	ConnectTimeout  time.Duration
-	KeepAlive       time.Duration
-	CleanSession    bool
-	AutoReconnect   bool
+	BrokerURL            string
+	ClientID             string
+	Username             string
+	Password             string
+	ConnectTimeout       time.Duration
+	KeepAlive            time.Duration
+	CleanSession         bool
+	AutoReconnect        bool
 	MaxReconnectInterval time.Duration
 }
 
@@ -93,7 +93,7 @@ func (m *MQTTConsumerImpl) Subscribe(ctx context.Context, topic string, handler 
 	// Create message handler function
 	messageHandler := func(client mqtt.Client, msg mqtt.Message) {
 		log.Printf("Received message on topic %s: %s", msg.Topic(), string(msg.Payload()))
-		
+
 		if err := m.handler(ctx, msg.Topic(), msg.Payload()); err != nil {
 			log.Printf("Error processing message: %v", err)
 		}
@@ -126,4 +126,3 @@ func (m *MQTTConsumerImpl) Unsubscribe(topic string) error {
 func (m *MQTTConsumerImpl) IsConnected() bool {
 	return m.client != nil && m.client.IsConnected()
 }
-
