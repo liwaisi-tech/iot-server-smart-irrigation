@@ -1,4 +1,4 @@
-package messaging
+package handlers
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/entities"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/dtos"
 	deviceregistration "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/device_registration"
 )
 
@@ -36,13 +37,7 @@ func (h *DeviceRegistrationHandler) HandleMessage(ctx context.Context, topic str
 // processDeviceRegistration processes device registration messages
 func (h *DeviceRegistrationHandler) processDeviceRegistration(ctx context.Context, payload []byte) error {
 	// Parse JSON payload
-	var msgData struct {
-		EventType           string `json:"event_type"`
-		MacAddress          string `json:"mac_address"`
-		DeviceName          string `json:"device_name"`
-		IPAddress           string `json:"ip_address"`
-		LocationDescription string `json:"location_description"`
-	}
+	var msgData dtos.DeviceRegistrationMessage
 
 	if err := json.Unmarshal(payload, &msgData); err != nil {
 		return fmt.Errorf("failed to unmarshal device registration message: %w", err)

@@ -15,20 +15,20 @@ type DeviceRegistrationUseCase interface {
 }
 
 // UseCase handles device registration business logic
-type UseCase struct {
+type useCaseImpl struct {
 	deviceRepo ports.DeviceRepository
 }
 
-// NewUseCase creates a new device registration use case
-func NewUseCase(deviceRepo ports.DeviceRepository) *UseCase {
-	return &UseCase{
+// NewDeviceRegistrationUseCase creates a new device registration use case
+func NewDeviceRegistrationUseCase(deviceRepo ports.DeviceRepository) *useCaseImpl {
+	return &useCaseImpl{
 		deviceRepo: deviceRepo,
 	}
 }
 
 // RegisterDevice processes a device registration message
-func (uc *UseCase) RegisterDevice(ctx context.Context, message *entities.DeviceRegistrationMessage) error {
-	log.Printf("Processing device registration for MAC: %s, Name: %s", 
+func (uc *useCaseImpl) RegisterDevice(ctx context.Context, message *entities.DeviceRegistrationMessage) error {
+	log.Printf("Processing device registration for MAC: %s, Name: %s",
 		message.MACAddress, message.DeviceName)
 
 	// Check if device already exists
@@ -45,7 +45,7 @@ func (uc *UseCase) RegisterDevice(ctx context.Context, message *entities.DeviceR
 }
 
 // createNewDevice creates a new device from registration message
-func (uc *UseCase) createNewDevice(ctx context.Context, message *entities.DeviceRegistrationMessage) error {
+func (uc *useCaseImpl) createNewDevice(ctx context.Context, message *entities.DeviceRegistrationMessage) error {
 	// Convert message to device entity
 	device, err := message.ToDevice()
 	if err != nil {
@@ -62,16 +62,12 @@ func (uc *UseCase) createNewDevice(ctx context.Context, message *entities.Device
 }
 
 // updateExistingDevice updates an existing device with new information
-func (uc *UseCase) updateExistingDevice(ctx context.Context, existingDevice *entities.Device, message *entities.DeviceRegistrationMessage) error {
+func (uc *useCaseImpl) updateExistingDevice(ctx context.Context, existingDevice *entities.Device, message *entities.DeviceRegistrationMessage) error {
 	// Update device information
 	existingDevice.DeviceName = message.DeviceName
 	existingDevice.IPAddress = message.IPAddress
 	existingDevice.LocationDescription = message.LocationDescription
 	existingDevice.LastSeen = message.ReceivedAt
-
-	// Mark device as online since it just registered
-	existingDevice.MarkOnline()
-
 	// Validate updated device
 	if err := existingDevice.Validate(); err != nil {
 		return fmt.Errorf("updated device validation failed: %w", err)
@@ -88,11 +84,11 @@ func (uc *UseCase) updateExistingDevice(ctx context.Context, existingDevice *ent
 
 // MessageHandler implements the ports.MessageHandler interface
 type MessageHandler struct {
-	useCase *UseCase
+	useCase *useCaseImpl
 }
 
 // NewMessageHandler creates a new message handler
-func NewMessageHandler(useCase *UseCase) *MessageHandler {
+func NewMessageHandler(useCase *useCaseImpl) *MessageHandler {
 	return &MessageHandler{
 		useCase: useCase,
 	}
