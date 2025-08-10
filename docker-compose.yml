@@ -60,34 +60,43 @@ services:
           memory: 2G
           cpus: '1'
 
-  pgbouncer:
-    image: bitnami/pgbouncer:1.24.1
-    container_name: iot-pgbouncer
+  go-soc-consumer:
+    build:
+      context: ./backend/go-soc-consumer
+      dockerfile: Dockerfile
+    container_name: iot-go-soc-consumer
     environment:
-      POSTGRESQL_HOST: postgres
-      POSTGRESQL_PORT: 5432
-      POSTGRESQL_USERNAME: liwaisi-sis-admin
-      POSTGRESQL_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRESQL_DATABASE: smart-irrigation-system-db
-      PGBOUNCER_POOL_MODE: transaction
-      PGBOUNCER_DEFAULT_POOL_SIZE: 25
-      PGBOUNCER_MAX_CLIENT_CONN: 1000
-      PGBOUNCER_ADMIN_USERS: liwaisi-sis-admin
-      PGBOUNCER_STATS_USERS: liwaisi-sis-admin
+      # Database configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: liwaisi-sis-admin
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_NAME: smart-irrigation-system-db
+      DB_SSL_MODE: disable
+      # MQTT configuration
+      MQTT_BROKER_URL: tcp://nats:1883
+      # NATS configuration
+      NATS_URL: nats://nats:4222
+      # Logging configuration
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+      ENVIRONMENT: production
     ports:
-      - "6432:5432"
+      - "8080:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      nats:
         condition: service_healthy
     networks:
       - iot-server-smart-irrigation-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U liwaisi-sis-admin || exit 1"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 40s
 
 networks:
   iot-server-smart-irrigation-network:
