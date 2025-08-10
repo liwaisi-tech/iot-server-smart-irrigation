@@ -81,7 +81,7 @@ func (a *Application) startMessageConsumers(ctx context.Context) error {
 	}
 
 	// Subscribe to temperature and humidity sensor data topic
-	sensorDataHandler := messaginghandlers.NewSensorDataHandler(a.loggerFactory, a.services.SensorTemperatureHumidityRepository)
+	sensorDataHandler := messaginghandlers.NewSensorDataHandler(a.loggerFactory, a.services.SensorDataUseCase)
 	sensorDataTopic := "/liwaisi/iot/smart-irrigation/sensors/temperature-and-humidity"
 
 	a.loggerFactory.Application().LogApplicationEvent("mqtt_topic_subscribing", "application",

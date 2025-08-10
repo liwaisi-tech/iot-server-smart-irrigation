@@ -118,12 +118,12 @@ func TestSensorDataHandler_HandleMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// fresh mock per subtest
-			repository := mocks.NewMockSensorTemperatureHumidityRepository(t)
-			handler := NewSensorDataHandler(loggerFactory, repository)
+			useCase := mocks.NewMockSensorDataUseCase(t)
+			handler := NewSensorDataHandler(loggerFactory, useCase)
 
 			// Expect repository.Create only for valid messages on the known topic
 			if !tt.wantErr && tt.topic == "/liwaisi/iot/smart-irrigation/sensors/temperature-and-humidity" {
-				repository.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+				useCase.EXPECT().StoreSensorData(mock.Anything, mock.Anything).Return(nil).Once()
 			}
 
 			err := handler.HandleMessage(ctx, tt.topic, tt.payload)
@@ -144,8 +144,8 @@ func TestSensorDataHandler_processSensorData(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("valid processing", func(t *testing.T) {
-		repository := mocks.NewMockSensorTemperatureHumidityRepository(t)
-		handler := NewSensorDataHandler(loggerFactory, repository)
+		useCase := mocks.NewMockSensorDataUseCase(t)
+		handler := NewSensorDataHandler(loggerFactory, useCase)
 		payload := createValidSensorDataPayload(t, dtos.SensorDataMessage{
 			EventType:   "sensor_data",
 			MacAddress:  "A0:A3:B3:AB:2F:D8",
@@ -153,14 +153,14 @@ func TestSensorDataHandler_processSensorData(t *testing.T) {
 			Humidity:    72.3,
 		})
 
-		repository.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+		useCase.EXPECT().StoreSensorData(mock.Anything, mock.Anything).Return(nil).Once()
 		err := handler.processSensorData(ctx, payload)
 		assert.NoError(t, err)
 	})
 
 	t.Run("malformed JSON", func(t *testing.T) {
-		repository := mocks.NewMockSensorTemperatureHumidityRepository(t)
-		handler := NewSensorDataHandler(loggerFactory, repository)
+		useCase := mocks.NewMockSensorDataUseCase(t)
+		handler := NewSensorDataHandler(loggerFactory, useCase)
 		payload := []byte(`{malformed`)
 
 		err := handler.processSensorData(ctx, payload)
@@ -169,8 +169,8 @@ func TestSensorDataHandler_processSensorData(t *testing.T) {
 	})
 
 	t.Run("missing fields", func(t *testing.T) {
-		repository := mocks.NewMockSensorTemperatureHumidityRepository(t)
-		handler := NewSensorDataHandler(loggerFactory, repository)
+		useCase := mocks.NewMockSensorDataUseCase(t)
+		handler := NewSensorDataHandler(loggerFactory, useCase)
 		payload := []byte(`{"event_type":"sensor_data"}`)
 
 		err := handler.processSensorData(ctx, payload)
@@ -179,8 +179,8 @@ func TestSensorDataHandler_processSensorData(t *testing.T) {
 	})
 
 	t.Run("repo create fails", func(t *testing.T) {
-		repository := mocks.NewMockSensorTemperatureHumidityRepository(t)
-		handler := NewSensorDataHandler(loggerFactory, repository)
+		useCase := mocks.NewMockSensorDataUseCase(t)
+		handler := NewSensorDataHandler(loggerFactory, useCase)
 		payload := createValidSensorDataPayload(t, dtos.SensorDataMessage{
 			EventType:   "sensor_data",
 			MacAddress:  "A0:A3:B3:AB:2F:D8",
@@ -188,19 +188,19 @@ func TestSensorDataHandler_processSensorData(t *testing.T) {
 			Humidity:    72.3,
 		})
 
-		repository.EXPECT().Create(mock.Anything, mock.Anything).Return(fmt.Errorf("db error")).Once()
+		useCase.EXPECT().StoreSensorData(mock.Anything, mock.Anything).Return(fmt.Errorf("db error")).Once()
 		err := handler.processSensorData(ctx, payload)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to create sensor data record")
+		assert.Contains(t, err.Error(), "failed to store sensor data")
 	})
 }
 
 func TestNewSensorDataHandler(t *testing.T) {
 	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
 	require.NoError(t, err)
-	repository := mocks.NewMockSensorTemperatureHumidityRepository(t)
+	useCase := mocks.NewMockSensorDataUseCase(t)
 
-	handler := NewSensorDataHandler(loggerFactory, repository)
+	handler := NewSensorDataHandler(loggerFactory, useCase)
 	assert.NotNil(t, handler)
 	// Logger fields are private after refactoring - just test that handler was created
 }
@@ -217,15 +217,15 @@ func TestSensorDataHandler_HandleMessage_Integration(t *testing.T) {
 	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
 	require.NoError(t, err)
 
-	repository := mocks.NewMockSensorTemperatureHumidityRepository(t)
-	handler := NewSensorDataHandler(loggerFactory, repository)
+	useCase := mocks.NewMockSensorDataUseCase(t)
+	handler := NewSensorDataHandler(loggerFactory, useCase)
 	ctx := context.Background()
 
 	// Test with the exact JSON format specified in requirements
 	jsonPayload := `{"event_type":"sensor_data","mac_address":"A0:A3:B3:AB:2F:D8","temperature":28.8000,"humidity":72.3}`
 	topic := "/liwaisi/iot/smart-irrigation/sensors/temperature-and-humidity"
 
-	repository.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Once()
+	useCase.EXPECT().StoreSensorData(mock.Anything, mock.Anything).Return(nil).Once()
 	err = handler.HandleMessage(ctx, topic, []byte(jsonPayload))
 	assert.NoError(t, err)
 }
@@ -234,8 +234,8 @@ func TestSensorDataHandler_HandleMessage_RepositoryError(t *testing.T) {
 	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
 	require.NoError(t, err)
 
-	repository := mocks.NewMockSensorTemperatureHumidityRepository(t)
-	handler := NewSensorDataHandler(loggerFactory, repository)
+	useCase := mocks.NewMockSensorDataUseCase(t)
+	handler := NewSensorDataHandler(loggerFactory, useCase)
 	ctx := context.Background()
 
 	topic := "/liwaisi/iot/smart-irrigation/sensors/temperature-and-humidity"
@@ -246,18 +246,18 @@ func TestSensorDataHandler_HandleMessage_RepositoryError(t *testing.T) {
 		Humidity:    72.3,
 	})
 
-	repository.EXPECT().Create(mock.Anything, mock.Anything).Return(fmt.Errorf("db error")).Once()
+	useCase.EXPECT().StoreSensorData(mock.Anything, mock.Anything).Return(fmt.Errorf("db error")).Once()
 	err = handler.HandleMessage(ctx, topic, payload)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create sensor data record")
+	assert.Contains(t, err.Error(), "failed to store sensor data")
 }
 
 func TestSensorDataHandler_AbnormalReadingsLogging(t *testing.T) {
 	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
 	require.NoError(t, err)
 
-	repository := mocks.NewMockSensorTemperatureHumidityRepository(t)
-	handler := NewSensorDataHandler(loggerFactory, repository)
+	useCase := mocks.NewMockSensorDataUseCase(t)
+	handler := NewSensorDataHandler(loggerFactory, useCase)
 	ctx := context.Background()
 	topic := "/liwaisi/iot/smart-irrigation/sensors/temperature-and-humidity"
 
@@ -270,7 +270,7 @@ func TestSensorDataHandler_AbnormalReadingsLogging(t *testing.T) {
 	})
 
 	// Expect two Create calls (one for normal, one for abnormal)
-	repository.EXPECT().Create(mock.Anything, mock.Anything).Return(nil).Twice()
+	useCase.EXPECT().StoreSensorData(mock.Anything, mock.Anything).Return(nil).Twice()
 
 	err = handler.HandleMessage(ctx, topic, normalPayload)
 	assert.NoError(t, err)

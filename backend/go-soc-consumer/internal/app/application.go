@@ -13,6 +13,7 @@ import (
 	devicehealth "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/device_health"
 	deviceregistration "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/device_registration"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/ping"
+	sensordata "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/sensor_data"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/config"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
@@ -33,6 +34,7 @@ type Services struct {
 	DeviceRegistrationUseCase           deviceregistration.DeviceRegistrationUseCase
 	DeviceHealthUseCase                 devicehealth.DeviceHealthUseCase
 	PingUseCase                         ping.PingUseCase
+	SensorDataUseCase                   sensordata.SensorDataUseCase
 	MQTTConsumer                        eventports.MessageConsumer
 	NATSPublisher                       eventports.EventPublisher
 	NATSSubscriber                      eventports.EventSubscriber

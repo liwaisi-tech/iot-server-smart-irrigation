@@ -35,7 +35,7 @@ func NewGormPostgresDBWithoutConfig(db *gorm.DB, infraLogger pkglogger.Infrastru
 	if infraLogger == nil {
 		return nil, fmt.Errorf("infrastructure logger cannot be nil")
 	}
-	
+
 	return &GormPostgresDB{
 		db:     db,
 		config: nil,
@@ -60,12 +60,12 @@ func initDatabase(cfg *config.DatabaseConfig, infraLogger pkglogger.Infrastructu
 	start := time.Now()
 	db, err := gorm.Open(postgres.Open(cfg.GetDSN()), gormConfig)
 	connectionDuration := time.Since(start)
-	
+
 	if err != nil {
 		infraLogger.LogExternalAPICall("postgres", "connection", 0, connectionDuration, err)
 		return nil, fmt.Errorf("failed to open GORM database connection: %w", err)
 	}
-	
+
 	infraLogger.LogExternalAPICall("postgres", "connection", 200, connectionDuration, nil)
 
 	// Get the underlying sql.DB to configure connection pool
@@ -156,15 +156,15 @@ func (g *GormPostgresDB) Ping(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
 	}
-	
+
 	err = sqlDB.PingContext(ctx)
 	duration := time.Since(start)
-	
+
 	if err != nil {
 		g.logger.LogExternalAPICall("postgres", "ping", 0, duration, err)
 		return fmt.Errorf("ping failed: %w", err)
 	}
-	
+
 	g.logger.LogExternalAPICall("postgres", "ping", 200, duration, nil)
 	return nil
 }
@@ -182,14 +182,17 @@ func (g *GormPostgresDB) Close() error {
 func (g *GormPostgresDB) AutoMigrate() error {
 	start := time.Now()
 	// Simple GORM AutoMigrate
-	err := g.db.AutoMigrate(&models.DeviceModel{})
+	err := g.db.AutoMigrate(
+		&models.DeviceModel{},
+		&models.SensorTemperatureHumidityModel{},
+	)
 	duration := time.Since(start)
-	
+
 	if err != nil {
 		g.logger.LogDatabaseOperation("auto_migrate", "devices", duration, 0, err)
 		return fmt.Errorf("auto migration failed: %w", err)
 	}
-	
+
 	g.logger.LogDatabaseOperation("auto_migrate", "devices", duration, 1, nil)
 	return nil
 }
@@ -201,7 +204,7 @@ func (g *GormPostgresDB) HealthCheck(ctx context.Context) error {
 	var result int
 	err := g.db.WithContext(ctx).Raw("SELECT 1").Scan(&result).Error
 	duration := time.Since(start)
-	
+
 	if err != nil {
 		g.logger.LogDatabaseOperation("health_check", "postgres", duration, 0, err)
 		return fmt.Errorf("health check failed: %w", err)
@@ -223,10 +226,10 @@ func (g *GormPostgresDB) GetStats() (interface{}, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
 	}
-	
+
 	stats := sqlDB.Stats()
 	duration := time.Since(start)
-	
+
 	// Log connection pool statistics gathering
 	g.logger.LogDatabaseOperation("get_stats", "connection_pool", duration, int64(stats.OpenConnections), nil)
 	return stats, nil

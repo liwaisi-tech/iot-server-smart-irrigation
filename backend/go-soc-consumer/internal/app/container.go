@@ -14,6 +14,7 @@ import (
 	devicehealth "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/device_health"
 	deviceregistration "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/device_registration"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/ping"
+	sensordata "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/sensor_data"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/config"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
@@ -280,6 +281,9 @@ func (c *Container) buildUseCases(services *Services) error {
 		healthCheckConfig,
 		c.loggerFactory,
 	)
+
+	// Build Sensor Data Use Case
+	services.SensorDataUseCase = sensordata.NewSensorDataUseCase(c.loggerFactory, services.SensorTemperatureHumidityRepository)
 
 	c.loggerFactory.Application().LogApplicationEvent("use_cases_initialized", "container")
 	return nil

@@ -8,23 +8,22 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/entities"
-	temphumidityrepo "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/repositories"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/dtos"
+	sensordata "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/sensor_data"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
 // SensorDataHandler handles temperature and humidity sensor data MQTT messages
-// This is a logging-only handler that processes and logs sensor data without persistence
 type SensorDataHandler struct {
-	coreLogger       logger.CoreLogger
-	tempHumidityRepo temphumidityrepo.SensorTemperatureHumidityRepository
+	coreLogger logger.CoreLogger
+	useCase    sensordata.SensorDataUseCase
 }
 
 // NewSensorDataHandler creates a sensor data handler using LoggerFactory
-func NewSensorDataHandler(loggerFactory logger.LoggerFactory, tempHumidityRepo temphumidityrepo.SensorTemperatureHumidityRepository) *SensorDataHandler {
+func NewSensorDataHandler(loggerFactory logger.LoggerFactory, useCase sensordata.SensorDataUseCase) *SensorDataHandler {
 	return &SensorDataHandler{
-		coreLogger:       loggerFactory.Core(),
-		tempHumidityRepo: tempHumidityRepo,
+		coreLogger: loggerFactory.Core(),
+		useCase:    useCase,
 	}
 }
 
@@ -84,15 +83,15 @@ func (h *SensorDataHandler) processSensorData(ctx context.Context, payload []byt
 		return fmt.Errorf("failed to create sensor data entity: %w", err)
 	}
 
-	// Create a database record for the sensor data
-	if err := h.tempHumidityRepo.Create(ctx, sensorData); err != nil {
-		h.coreLogger.Error("sensor_data_processing_error",
+	// Process the message using the use case
+	if err := h.useCase.StoreSensorData(ctx, sensorData); err != nil {
+		h.coreLogger.Error("failed_to_store_sensor_data",
 			zap.String("topic", "/liwaisi/iot/smart-irrigation/sensors/temperature-and-humidity"),
 			zap.String("payload", string(payload)),
 			zap.Error(err),
 			zap.String("component", "sensor_data_handler"),
 		)
-		return fmt.Errorf("failed to create sensor data record: %w", err)
+		return fmt.Errorf("failed to store sensor data: %w", err)
 	}
 	return nil
 }
