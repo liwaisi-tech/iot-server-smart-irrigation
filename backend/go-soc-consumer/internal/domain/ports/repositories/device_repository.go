@@ -8,8 +8,8 @@ import (
 
 // DeviceRepository defines the contract for device persistence operations
 type DeviceRepository interface {
-	// Save persists a new device
-	Save(ctx context.Context, device *entities.Device) error
+	// Create persists a new device
+	Create(ctx context.Context, device *entities.Device) error
 
 	// Update updates an existing device
 	Update(ctx context.Context, device *entities.Device) error

@@ -11,17 +11,17 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	eventports "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/events"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/mocks"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
-// createTestLogger creates a test logger for use in tests
-func createTestLogger(t *testing.T) *logger.IoTLogger {
-	testLogger, err := logger.NewDevelopmentLogger()
+// createTestLoggerFactory creates a test logger factory for use in tests
+func createTestLoggerFactory(t *testing.T) logger.LoggerFactory {
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
 	assert.NoError(t, err)
-	assert.NotNil(t, testLogger)
-	return testLogger
+	assert.NotNil(t, loggerFactory)
+	return loggerFactory
 }
 
 // MockMQTTClient is a mock implementation of the MQTT client interface
@@ -136,12 +136,13 @@ func TestNewMQTTConsumer(t *testing.T) {
 		MaxReconnectInterval: 10 * time.Minute,
 	}
 
-	consumer := NewMQTTConsumer(config, createTestLogger(t))
+	consumer := NewMQTTConsumer(config, createTestLoggerFactory(t))
 
 	assert.NotNil(t, consumer)
 	assert.Equal(t, config, consumer.config)
 	assert.Nil(t, consumer.client)
-	assert.Nil(t, consumer.handler)
+	assert.NotNil(t, consumer.handlers)
+	assert.Empty(t, consumer.handlers)
 }
 
 // TestMQTTConsumer_Stop tests the Stop method
@@ -186,7 +187,7 @@ func TestMQTTConsumer_Stop(t *testing.T) {
 				ClientID:  "test-client",
 			}
 
-			consumer := NewMQTTConsumer(config, createTestLogger(t))
+			consumer := NewMQTTConsumer(config, createTestLoggerFactory(t))
 
 			if tt.setupClient != nil {
 				mockClient := tt.setupClient(t)
@@ -213,7 +214,7 @@ func TestMQTTConsumer_Subscribe(t *testing.T) {
 	tests := []struct {
 		name    string
 		topic   string
-		handler ports.MessageHandler
+		handler eventports.MessageHandler
 		setup   func(t *testing.T) (*MockMQTTClient, *MockMQTTToken)
 		wantErr bool
 		errMsg  string
@@ -280,7 +281,7 @@ func TestMQTTConsumer_Subscribe(t *testing.T) {
 				ClientID:  "test-client",
 			}
 
-			consumer := NewMQTTConsumer(config, createTestLogger(t))
+			consumer := NewMQTTConsumer(config, createTestLoggerFactory(t))
 			mockClient, _ := tt.setup(t)
 			consumer.client = mockClient
 
@@ -291,7 +292,7 @@ func TestMQTTConsumer_Subscribe(t *testing.T) {
 				assert.Contains(t, err.Error(), tt.errMsg)
 			} else {
 				assert.NoError(t, err)
-				assert.NotNil(t, consumer.handler)
+				assert.Contains(t, consumer.handlers, tt.topic)
 			}
 
 			// Mock expectations are automatically checked via cleanup functions
@@ -361,7 +362,7 @@ func TestMQTTConsumer_Unsubscribe(t *testing.T) {
 				ClientID:  "test-client",
 			}
 
-			consumer := NewMQTTConsumer(config, createTestLogger(t))
+			consumer := NewMQTTConsumer(config, createTestLoggerFactory(t))
 			mockClient, _ := tt.setup(t)
 			consumer.client = mockClient
 
@@ -420,7 +421,7 @@ func TestMQTTConsumer_IsConnected(t *testing.T) {
 				ClientID:  "test-client",
 			}
 
-			consumer := NewMQTTConsumer(config, createTestLogger(t))
+			consumer := NewMQTTConsumer(config, createTestLoggerFactory(t))
 
 			if tt.setup != nil {
 				mockClient := tt.setup(t)
@@ -445,7 +446,7 @@ func TestMQTTConsumer_MessageHandling(t *testing.T) {
 			ClientID:  "test-client",
 		}
 
-		consumer := NewMQTTConsumer(config, createTestLogger(t))
+		consumer := NewMQTTConsumer(config, createTestLoggerFactory(t))
 
 		// Create a test handler
 		var receivedTopic string
@@ -458,7 +459,7 @@ func TestMQTTConsumer_MessageHandling(t *testing.T) {
 			return handlerError
 		}
 
-		consumer.handler = testHandler
+		consumer.handlers["test/topic"] = testHandler
 
 		// Test that our handler works correctly
 		err := testHandler(context.Background(), "test/topic", []byte("test payload"))
@@ -474,14 +475,14 @@ func TestMQTTConsumer_MessageHandling(t *testing.T) {
 			ClientID:  "test-client",
 		}
 
-		consumer := NewMQTTConsumer(config, createTestLogger(t))
+		consumer := NewMQTTConsumer(config, createTestLoggerFactory(t))
 
 		// Create a handler that returns an error
 		testHandler := func(ctx context.Context, topic string, payload []byte) error {
 			return errors.New("handler error")
 		}
 
-		consumer.handler = testHandler
+		consumer.handlers["test/topic"] = testHandler
 
 		// Test that the handler returns the expected error
 		err := testHandler(context.Background(), "test/topic", []byte("test payload"))
@@ -498,7 +499,7 @@ func TestMessageConsumerInterface_Subscribe(t *testing.T) {
 	tests := []struct {
 		name    string
 		topic   string
-		handler ports.MessageHandler
+		handler eventports.MessageHandler
 		setup   func(*mocks.MockMessageConsumer)
 		wantErr bool
 		errMsg  string
@@ -639,10 +640,10 @@ func TestMessageConsumerInterface_ErrorHandling(t *testing.T) {
 
 // Example of how a service would use the MessageConsumer interface
 type SampleMessageService struct {
-	consumer ports.MessageConsumer
+	consumer eventports.MessageConsumer
 }
 
-func NewSampleMessageService(consumer ports.MessageConsumer) *SampleMessageService {
+func NewSampleMessageService(consumer eventports.MessageConsumer) *SampleMessageService {
 	return &SampleMessageService{consumer: consumer}
 }
 
@@ -701,19 +702,19 @@ func BenchmarkMQTTConsumer_MessageHandling(b *testing.B) {
 		ClientID:  "test-client",
 	}
 
-	// For benchmark, create a simple logger without test assertions
-	testLogger, err := logger.NewDevelopmentLogger()
+	// For benchmark, create a simple logger factory without test assertions
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
 	if err != nil {
 		b.Fatal(err)
 	}
-	consumer := NewMQTTConsumer(config, testLogger)
+	consumer := NewMQTTConsumer(config, loggerFactory)
 
 	// Simple handler for benchmarking
 	testHandler := func(ctx context.Context, topic string, payload []byte) error {
 		return nil
 	}
 
-	consumer.handler = testHandler
+	consumer.handlers["benchmark/topic"] = testHandler
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

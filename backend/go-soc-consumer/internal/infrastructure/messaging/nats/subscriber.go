@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 
-	"github.com/nats-io/nats.go"
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	eventports "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/events"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
@@ -18,13 +18,13 @@ type subscriber struct {
 	config        *NATSConfig
 	conn          *nats.Conn
 	subscriptions map[string]*nats.Subscription
-	logger        *logger.IoTLogger
+	loggerFactory logger.LoggerFactory
 	mu            sync.RWMutex
 	started       bool
 }
 
 // NewNATSSubscriber creates a new NATS event subscriber
-func NewNATSSubscriber(config *NATSConfig, iotLogger *logger.IoTLogger) (ports.EventSubscriber, error) {
+func NewNATSSubscriber(config *NATSConfig, loggerFactory logger.LoggerFactory) (eventports.EventSubscriber, error) {
 	if config == nil {
 		config = DefaultNATSConfig()
 	}
@@ -33,18 +33,18 @@ func NewNATSSubscriber(config *NATSConfig, iotLogger *logger.IoTLogger) (ports.E
 		return nil, fmt.Errorf("invalid NATS config: %w", err)
 	}
 
-	if iotLogger == nil {
-		defaultLogger, err := logger.NewDefaultLogger()
+	if loggerFactory == nil {
+		defaultLoggerFactory, err := logger.NewDefault()
 		if err != nil {
-			return nil, fmt.Errorf("failed to create default logger: %w", err)
+			return nil, fmt.Errorf("failed to create default logger factory: %w", err)
 		}
-		iotLogger = defaultLogger
+		loggerFactory = defaultLoggerFactory
 	}
 
 	return &subscriber{
 		config:        config,
 		subscriptions: make(map[string]*nats.Subscription),
-		logger:        iotLogger,
+		loggerFactory: loggerFactory,
 	}, nil
 }
 
@@ -62,7 +62,7 @@ func (s *subscriber) Start(ctx context.Context) error {
 	}
 
 	s.started = true
-	s.logger.LogApplicationEvent("nats_subscriber_started", "nats_subscriber",
+	s.loggerFactory.Application().LogApplicationEvent("nats_subscriber_started", "nats_subscriber",
 		zap.String("server_url", s.config.URL),
 		zap.String("client_id", s.config.ClientID),
 	)
@@ -80,35 +80,35 @@ func (s *subscriber) connect() error {
 		nats.MaxPingsOutstanding(s.config.MaxPingsOutstanding),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
 			if err != nil {
-				s.logger.Error("nats_subscriber_disconnected",
+				s.loggerFactory.Core().Error("nats_subscriber_disconnected",
 					zap.Error(err),
 					zap.String("server_url", s.config.URL),
 					zap.String("client_id", s.config.ClientID),
 					zap.String("component", "nats_subscriber"),
 				)
 			} else {
-				s.logger.LogApplicationEvent("nats_subscriber_disconnected_gracefully", "nats_subscriber",
+				s.loggerFactory.Application().LogApplicationEvent("nats_subscriber_disconnected_gracefully", "nats_subscriber",
 					zap.String("server_url", s.config.URL),
 					zap.String("client_id", s.config.ClientID),
 				)
 			}
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
-			s.logger.LogApplicationEvent("nats_subscriber_reconnected", "nats_subscriber",
+			s.loggerFactory.Application().LogApplicationEvent("nats_subscriber_reconnected", "nats_subscriber",
 				zap.String("server_url", nc.ConnectedUrl()),
 				zap.String("client_id", s.config.ClientID),
 			)
 		}),
 		nats.ClosedHandler(func(nc *nats.Conn) {
 			if nc.LastError() != nil {
-				s.logger.Error("nats_subscriber_connection_closed",
+				s.loggerFactory.Core().Error("nats_subscriber_connection_closed",
 					zap.Error(nc.LastError()),
 					zap.String("server_url", s.config.URL),
 					zap.String("client_id", s.config.ClientID),
 					zap.String("component", "nats_subscriber"),
 				)
 			} else {
-				s.logger.LogApplicationEvent("nats_subscriber_connection_closed_gracefully", "nats_subscriber",
+				s.loggerFactory.Application().LogApplicationEvent("nats_subscriber_connection_closed_gracefully", "nats_subscriber",
 					zap.String("server_url", s.config.URL),
 					zap.String("client_id", s.config.ClientID),
 				)
@@ -122,16 +122,16 @@ func (s *subscriber) connect() error {
 	}
 
 	s.conn = conn
-	s.logger.LogApplicationEvent("nats_subscriber_connected", "nats_subscriber",
+	s.loggerFactory.Application().LogApplicationEvent("nats_subscriber_connected", "nats_subscriber",
 		zap.String("server_url", conn.ConnectedUrl()),
 		zap.String("client_id", s.config.ClientID),
 	)
-	
+
 	return nil
 }
 
 // Subscribe subscribes to events from the specified subject
-func (s *subscriber) Subscribe(ctx context.Context, subject string, handler ports.MessageHandler) error {
+func (s *subscriber) Subscribe(ctx context.Context, subject string, handler eventports.MessageHandler) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -147,7 +147,7 @@ func (s *subscriber) Subscribe(ctx context.Context, subject string, handler port
 		return fmt.Errorf("already subscribed to subject: %s", subject)
 	}
 
-	s.logger.LogApplicationEvent("nats_subscribing_to_subject", "nats_subscriber",
+	s.loggerFactory.Application().LogApplicationEvent("nats_subscribing_to_subject", "nats_subscriber",
 		zap.String("subject", subject),
 		zap.String("client_id", s.config.ClientID),
 	)
@@ -156,8 +156,8 @@ func (s *subscriber) Subscribe(ctx context.Context, subject string, handler port
 	natsHandler := func(msg *nats.Msg) {
 		start := time.Now()
 		payloadSize := len(msg.Data)
-		
-		s.logger.Debug("nats_message_received",
+
+		s.loggerFactory.Core().Debug("nats_message_received",
 			zap.String("subject", msg.Subject),
 			zap.Int("data_length_bytes", payloadSize),
 			zap.String("component", "nats_subscriber"),
@@ -169,9 +169,9 @@ func (s *subscriber) Subscribe(ctx context.Context, subject string, handler port
 
 		err := handler(msgCtx, msg.Subject, msg.Data)
 		processingDuration := time.Since(start)
-		
+
 		if err != nil {
-			s.logger.Error("nats_message_processing_error",
+			s.loggerFactory.Core().Error("nats_message_processing_error",
 				zap.Error(err),
 				zap.String("subject", msg.Subject),
 				zap.Int("payload_size_bytes", payloadSize),
@@ -179,7 +179,7 @@ func (s *subscriber) Subscribe(ctx context.Context, subject string, handler port
 				zap.String("component", "nats_subscriber"),
 			)
 		} else {
-			s.logger.Debug("nats_message_processed_successfully",
+			s.loggerFactory.Core().Debug("nats_message_processed_successfully",
 				zap.String("subject", msg.Subject),
 				zap.Int("payload_size_bytes", payloadSize),
 				zap.Duration("processing_duration", processingDuration),
@@ -194,11 +194,11 @@ func (s *subscriber) Subscribe(ctx context.Context, subject string, handler port
 	}
 
 	s.subscriptions[subject] = sub
-	s.logger.LogApplicationEvent("nats_subscribed_to_subject", "nats_subscriber",
+	s.loggerFactory.Application().LogApplicationEvent("nats_subscribed_to_subject", "nats_subscriber",
 		zap.String("subject", subject),
 		zap.String("client_id", s.config.ClientID),
 	)
-	
+
 	return nil
 }
 
@@ -212,14 +212,14 @@ func (s *subscriber) Unsubscribe(ctx context.Context, subject string) error {
 		return fmt.Errorf("not subscribed to subject: %s", subject)
 	}
 
-	s.logger.LogApplicationEvent("nats_subject_unsubscribing", "nats_subscriber",
+	s.loggerFactory.Application().LogApplicationEvent("nats_subject_unsubscribing", "nats_subscriber",
 		zap.String("subject", subject),
 		zap.String("client_id", s.config.ClientID),
 	)
 
 	start := time.Now()
 	if err := sub.Unsubscribe(); err != nil {
-		s.logger.Error("nats_subject_unsubscription_failed",
+		s.loggerFactory.Core().Error("nats_subject_unsubscription_failed",
 			zap.Error(err),
 			zap.String("subject", subject),
 			zap.Duration("unsubscription_attempt_duration", time.Since(start)),
@@ -229,12 +229,12 @@ func (s *subscriber) Unsubscribe(ctx context.Context, subject string) error {
 	}
 
 	delete(s.subscriptions, subject)
-	s.logger.LogApplicationEvent("nats_subject_unsubscribed", "nats_subscriber",
+	s.loggerFactory.Application().LogApplicationEvent("nats_subject_unsubscribed", "nats_subscriber",
 		zap.String("subject", subject),
 		zap.String("client_id", s.config.ClientID),
 		zap.Duration("unsubscription_duration", time.Since(start)),
 	)
-	
+
 	return nil
 }
 
@@ -242,7 +242,7 @@ func (s *subscriber) Unsubscribe(ctx context.Context, subject string) error {
 func (s *subscriber) IsConnected() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	return s.conn != nil && s.conn.IsConnected()
 }
 
@@ -255,16 +255,16 @@ func (s *subscriber) Stop(ctx context.Context) error {
 		return nil
 	}
 
-	s.logger.LogApplicationEvent("nats_subscriber_stopping", "nats_subscriber")
+	s.loggerFactory.Application().LogApplicationEvent("nats_subscriber_stopping", "nats_subscriber")
 
 	// Unsubscribe from all subjects
 	for subject, sub := range s.subscriptions {
-		s.logger.Debug("nats_subject_unsubscribing_shutdown",
+		s.loggerFactory.Core().Debug("nats_subject_unsubscribing_shutdown",
 			zap.String("subject", subject),
 			zap.String("component", "nats_subscriber"),
 		)
 		if err := sub.Unsubscribe(); err != nil {
-			s.logger.Warn("nats_subject_unsubscription_error_shutdown",
+			s.loggerFactory.Core().Warn("nats_subject_unsubscription_error_shutdown",
 				zap.Error(err),
 				zap.String("subject", subject),
 				zap.String("component", "nats_subscriber"),
@@ -284,13 +284,13 @@ func (s *subscriber) Stop(ctx context.Context) error {
 
 		select {
 		case <-done:
-			s.logger.LogApplicationEvent("nats_subscriber_connection_closed", "nats_subscriber",
+			s.loggerFactory.Application().LogApplicationEvent("nats_subscriber_connection_closed", "nats_subscriber",
 				zap.Duration("close_duration", time.Since(start)),
 			)
 		case <-ctx.Done():
 			// Force close if context timeout
 			s.conn.Close()
-			s.logger.Warn("nats_subscriber_connection_timeout",
+			s.loggerFactory.Core().Warn("nats_subscriber_connection_timeout",
 				zap.Duration("timeout_after", time.Since(start)),
 				zap.String("component", "nats_subscriber"),
 			)
@@ -300,7 +300,7 @@ func (s *subscriber) Stop(ctx context.Context) error {
 	}
 
 	s.started = false
-	s.logger.LogApplicationEvent("nats_subscriber_stopped", "nats_subscriber")
-	
+	s.loggerFactory.Application().LogApplicationEvent("nats_subscriber_stopped", "nats_subscriber")
+
 	return ctx.Err()
 }

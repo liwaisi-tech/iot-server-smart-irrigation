@@ -9,6 +9,7 @@ import (
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/entities"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	repositoryports "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/repositories"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
@@ -32,38 +33,38 @@ type DeviceHealthUseCase interface {
 
 // useCaseImpl implements the DeviceHealthUseCase interface
 type useCaseImpl struct {
-	deviceRepo    ports.DeviceRepository
+	deviceRepo    repositoryports.DeviceRepository
 	healthChecker ports.DeviceHealthChecker
 	config        *HealthCheckConfig
-	logger        *logger.IoTLogger
+	loggerFactory logger.LoggerFactory
 	semaphore     chan struct{} // For limiting concurrent health checks
 }
 
 // NewDeviceHealthUseCase creates a new device health use case
 func NewDeviceHealthUseCase(
-	deviceRepo ports.DeviceRepository,
+	deviceRepo repositoryports.DeviceRepository,
 	healthChecker ports.DeviceHealthChecker,
 	config *HealthCheckConfig,
-	iotLogger *logger.IoTLogger,
+	loggerFactory logger.LoggerFactory,
 ) DeviceHealthUseCase {
 	if config == nil {
 		config = DefaultHealthCheckConfig()
 	}
 
-	if iotLogger == nil {
-		defaultLogger, err := logger.NewDefaultLogger()
+	if loggerFactory == nil {
+		defaultLoggerFactory, err := logger.NewDefault()
 		if err != nil {
 			// Fallback to a basic logger if default creation fails
-			panic(fmt.Sprintf("failed to create default logger: %v", err))
+			panic(fmt.Sprintf("failed to create default logger factory: %v", err))
 		}
-		iotLogger = defaultLogger
+		loggerFactory = defaultLoggerFactory
 	}
 
 	return &useCaseImpl{
 		deviceRepo:    deviceRepo,
 		healthChecker: healthChecker,
 		config:        config,
-		logger:        iotLogger,
+		loggerFactory: loggerFactory,
 		semaphore:     make(chan struct{}, config.MaxConcurrent),
 	}
 }
@@ -78,7 +79,7 @@ func (uc *useCaseImpl) ProcessDeviceDetectedEvent(ctx context.Context, event *en
 		return fmt.Errorf("invalid event: %w", err)
 	}
 
-	uc.logger.Info("device_detected_event_processing_started",
+	uc.loggerFactory.Core().Info("device_detected_event_processing_started",
 		zap.String("mac_address", event.MACAddress),
 		zap.String("ip_address", event.IPAddress),
 		zap.String("event_id", event.EventID),
@@ -98,7 +99,7 @@ func (uc *useCaseImpl) performHealthCheck(ctx context.Context, event *entities.D
 	case uc.semaphore <- struct{}{}:
 		defer func() { <-uc.semaphore }()
 	case <-ctx.Done():
-		uc.logger.Warn("health_check_cancelled_before_semaphore",
+		uc.loggerFactory.Core().Warn("health_check_cancelled_before_semaphore",
 			zap.String("mac_address", event.MACAddress),
 			zap.Error(ctx.Err()),
 			zap.String("component", "device_health_usecase"),
@@ -106,7 +107,7 @@ func (uc *useCaseImpl) performHealthCheck(ctx context.Context, event *entities.D
 		return
 	}
 
-	uc.logger.Debug("health_check_starting",
+	uc.loggerFactory.Core().Debug("health_check_starting",
 		zap.String("mac_address", event.MACAddress),
 		zap.String("ip_address", event.IPAddress),
 		zap.String("component", "device_health_usecase"),
@@ -118,8 +119,8 @@ func (uc *useCaseImpl) performHealthCheck(ctx context.Context, event *entities.D
 	healthCheckDuration := time.Since(start)
 
 	if err != nil {
-		uc.logger.LogDeviceHealthCheck(event.MACAddress, event.IPAddress, false, healthCheckDuration, err)
-		uc.logger.Error("health_check_error",
+		uc.loggerFactory.Device().LogDeviceHealthCheck(event.MACAddress, event.IPAddress, false, healthCheckDuration, err)
+		uc.loggerFactory.Core().Error("health_check_error",
 			zap.Error(err),
 			zap.String("mac_address", event.MACAddress),
 			zap.String("ip_address", event.IPAddress),
@@ -128,12 +129,12 @@ func (uc *useCaseImpl) performHealthCheck(ctx context.Context, event *entities.D
 		)
 		// Continue to update device status even if health check failed
 	} else {
-		uc.logger.LogDeviceHealthCheck(event.MACAddress, event.IPAddress, isAlive, healthCheckDuration, nil)
+		uc.loggerFactory.Device().LogDeviceHealthCheck(event.MACAddress, event.IPAddress, isAlive, healthCheckDuration, nil)
 	}
 
 	// Update device status based on health check result
 	if err := uc.updateDeviceStatus(ctx, event.MACAddress, isAlive); err != nil {
-		uc.logger.Error("device_status_update_failed",
+		uc.loggerFactory.Core().Error("device_status_update_failed",
 			zap.Error(err),
 			zap.String("mac_address", event.MACAddress),
 			zap.String("component", "device_health_usecase"),
@@ -157,7 +158,7 @@ func (uc *useCaseImpl) updateDeviceStatus(ctx context.Context, macAddress string
 	var newStatus string
 	if isAlive {
 		newStatus = "online"
-		uc.logger.Info("device_health_check_succeeded",
+		uc.loggerFactory.Core().Info("device_health_check_succeeded",
 			zap.String("mac_address", macAddress),
 			zap.String("ip_address", device.GetIPAddress()),
 			zap.String("component", "device_health_usecase"),
@@ -166,7 +167,7 @@ func (uc *useCaseImpl) updateDeviceStatus(ctx context.Context, macAddress string
 		newStatus = "offline"
 		errorMsg := "unknown error"
 		attempts := 0
-		uc.logger.Warn("device_health_check_failed",
+		uc.loggerFactory.Core().Warn("device_health_check_failed",
 			zap.String("mac_address", macAddress),
 			zap.String("error", errorMsg),
 			zap.Int("attempts", attempts),
@@ -181,10 +182,10 @@ func (uc *useCaseImpl) updateDeviceStatus(ctx context.Context, macAddress string
 
 	// Save updated device to repository
 	if err := uc.deviceRepo.Update(ctx, device); err != nil {
-		return fmt.Errorf("failed to save device status update: %w", err)
+		return fmt.Errorf("failed to update device status: %w", err)
 	}
 
-	uc.logger.Info("device_status_updated_successfully",
+	uc.loggerFactory.Core().Info("device_status_updated_successfully",
 		zap.String("mac_address", macAddress),
 		zap.String("new_status", newStatus),
 		zap.String("component", "device_health_usecase"),

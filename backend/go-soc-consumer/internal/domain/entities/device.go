@@ -3,10 +3,11 @@ package entities
 import (
 	"fmt"
 	"net"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/validation"
 )
 
 // Device represents an IoT device in the smart irrigation system
@@ -20,7 +21,6 @@ type Device struct {
 	LastSeen            time.Time
 	Status              string // "registered", "online", "offline"
 }
-
 
 // NewDevice creates a new device with validation and normalization
 func NewDevice(macAddress, deviceName, ipAddress, locationDescription string) (*Device, error) {
@@ -46,7 +46,7 @@ func NewDevice(macAddress, deviceName, ipAddress, locationDescription string) (*
 func (d *Device) Normalize() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	
+
 	d.MACAddress = strings.ToUpper(strings.TrimSpace(d.MACAddress))
 	d.DeviceName = strings.TrimSpace(d.DeviceName)
 	d.IPAddress = strings.TrimSpace(d.IPAddress)
@@ -78,32 +78,9 @@ func (d *Device) Validate() error {
 	return nil
 }
 
-// validateMacAddress validates the MAC address format
+// validateMacAddress validates the MAC address format using the shared validation package
 func (d *Device) validateMacAddress() error {
-	if d.MACAddress == "" {
-		return fmt.Errorf("mac address is required")
-	}
-
-	// Check for consistent separator (either all colons or all dashes)
-	hasColon := strings.Contains(d.MACAddress, ":")
-	hasDash := strings.Contains(d.MACAddress, "-")
-
-	if hasColon && hasDash {
-		return fmt.Errorf("invalid mac address format: mixed separators (use either colons or dashes)")
-	}
-
-	// MAC address pattern: XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX
-	macPattern := `^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$`
-	matched, err := regexp.MatchString(macPattern, d.MACAddress)
-	if err != nil {
-		return fmt.Errorf("error validating mac address: %w", err)
-	}
-
-	if !matched {
-		return fmt.Errorf("invalid mac address format: %s (expected format: XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX)", d.MACAddress)
-	}
-
-	return nil
+	return validation.ValidateMACAddress(d.MACAddress)
 }
 
 // validateDeviceName validates the device name
@@ -174,26 +151,26 @@ func (d *Device) validateStatus() error {
 func (d *Device) UpdateStatus(status string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	
+
 	// Save the current status in case we need to roll back
 	originalStatus := d.Status
-	
+
 	// Update the status for validation
 	d.Status = status
-	
+
 	// Validate the new status (using the current implementation for simplicity)
 	validStatuses := map[string]bool{
 		"registered": true,
 		"online":     true,
 		"offline":    true,
 	}
-	
+
 	if !validStatuses[status] {
 		// Roll back the status on validation error
 		d.Status = originalStatus
 		return fmt.Errorf("invalid status update: %s. Valid statuses: registered, online, offline", status)
 	}
-	
+
 	// Only update LastSeen if the status is valid
 	d.LastSeen = time.Now()
 	return nil

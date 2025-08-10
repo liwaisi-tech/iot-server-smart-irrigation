@@ -7,7 +7,7 @@ package mocks
 import (
 	"context"
 
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/events"
 	mock "github.com/stretchr/testify/mock"
 )
 

@@ -18,6 +18,9 @@ type DeviceModel struct {
 	LastSeen            time.Time `gorm:"not null;default:now();index" json:"last_seen"`
 	Status              string    `gorm:"size:20;not null;default:'registered';check:status IN ('registered', 'online', 'offline');index" json:"status"`
 
+	// Associations
+	SensorTemperatureHumidity []SensorTemperatureHumidityModel `gorm:"foreignKey:MACAddress;references:MACAddress;constraint:OnUpdate:CASCADE,OnDelete:CASCADE" json:"-"`
+
 	// Audit fields (GORM will handle these automatically)
 	CreatedAt time.Time      `gorm:"not null;default:now()" json:"created_at"`
 	UpdatedAt time.Time      `gorm:"not null;default:now()" json:"updated_at"`

@@ -9,7 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	ports "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/events"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/messaging/nats/mappers"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 	"github.com/nats-io/nats.go"
@@ -17,15 +17,15 @@ import (
 
 // publisher implements the EventPublisher port using NATS
 type publisher struct {
-	config *NATSConfig
-	conn   *nats.Conn
-	logger *logger.IoTLogger
-	mu     sync.RWMutex
-	mapper *mappers.DeviceDetectedEventMapper
+	config        *NATSConfig
+	conn          *nats.Conn
+	loggerFactory logger.LoggerFactory
+	mu            sync.RWMutex
+	mapper        *mappers.DeviceDetectedEventMapper
 }
 
 // NewNATSPublisher creates a new NATS event publisher
-func NewNATSPublisher(config *NATSConfig, iotLogger *logger.IoTLogger) (ports.EventPublisher, error) {
+func NewNATSPublisher(config *NATSConfig, loggerFactory logger.LoggerFactory) (ports.EventPublisher, error) {
 	if config == nil {
 		config = DefaultNATSConfig()
 	}
@@ -34,18 +34,18 @@ func NewNATSPublisher(config *NATSConfig, iotLogger *logger.IoTLogger) (ports.Ev
 		return nil, fmt.Errorf("invalid NATS config: %w", err)
 	}
 
-	if iotLogger == nil {
-		defaultLogger, err := logger.NewDefaultLogger()
+	if loggerFactory == nil {
+		defaultLoggerFactory, err := logger.NewDefault()
 		if err != nil {
-			return nil, fmt.Errorf("failed to create default logger: %w", err)
+			return nil, fmt.Errorf("failed to create default logger factory: %w", err)
 		}
-		iotLogger = defaultLogger
+		loggerFactory = defaultLoggerFactory
 	}
 
 	p := &publisher{
-		config: config,
-		logger: iotLogger,
-		mapper: mappers.NewDeviceDetectedEventMapper(),
+		config:        config,
+		loggerFactory: loggerFactory,
+		mapper:        mappers.NewDeviceDetectedEventMapper(),
 	}
 
 	// Establish connection
@@ -70,35 +70,35 @@ func (p *publisher) connect() error {
 		nats.MaxPingsOutstanding(p.config.MaxPingsOutstanding),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
 			if err != nil {
-				p.logger.Error("nats_publisher_disconnected",
+				p.loggerFactory.Core().Error("nats_publisher_disconnected",
 					zap.Error(err),
 					zap.String("server_url", p.config.URL),
 					zap.String("client_id", p.config.ClientID),
 					zap.String("component", "nats_publisher"),
 				)
 			} else {
-				p.logger.LogApplicationEvent("nats_publisher_disconnected_gracefully", "nats_publisher",
+				p.loggerFactory.Application().LogApplicationEvent("nats_publisher_disconnected_gracefully", "nats_publisher",
 					zap.String("server_url", p.config.URL),
 					zap.String("client_id", p.config.ClientID),
 				)
 			}
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
-			p.logger.LogApplicationEvent("nats_publisher_reconnected", "nats_publisher",
+			p.loggerFactory.Application().LogApplicationEvent("nats_publisher_reconnected", "nats_publisher",
 				zap.String("server_url", nc.ConnectedUrl()),
 				zap.String("client_id", p.config.ClientID),
 			)
 		}),
 		nats.ClosedHandler(func(nc *nats.Conn) {
 			if nc.LastError() != nil {
-				p.logger.Error("nats_publisher_connection_closed",
+				p.loggerFactory.Core().Error("nats_publisher_connection_closed",
 					zap.Error(nc.LastError()),
 					zap.String("server_url", p.config.URL),
 					zap.String("client_id", p.config.ClientID),
 					zap.String("component", "nats_publisher"),
 				)
 			} else {
-				p.logger.LogApplicationEvent("nats_publisher_connection_closed_gracefully", "nats_publisher",
+				p.loggerFactory.Application().LogApplicationEvent("nats_publisher_connection_closed_gracefully", "nats_publisher",
 					zap.String("server_url", p.config.URL),
 					zap.String("client_id", p.config.ClientID),
 				)
@@ -109,9 +109,9 @@ func (p *publisher) connect() error {
 	start := time.Now()
 	conn, err := nats.Connect(p.config.URL, opts...)
 	connectionDuration := time.Since(start)
-	
+
 	if err != nil {
-		p.logger.Error("nats_publisher_connection_failed",
+		p.loggerFactory.Core().Error("nats_publisher_connection_failed",
 			zap.Error(err),
 			zap.String("server_url", p.config.URL),
 			zap.String("client_id", p.config.ClientID),
@@ -122,7 +122,7 @@ func (p *publisher) connect() error {
 	}
 
 	p.conn = conn
-	p.logger.LogApplicationEvent("nats_publisher_connected", "nats_publisher",
+	p.loggerFactory.Application().LogApplicationEvent("nats_publisher_connected", "nats_publisher",
 		zap.String("server_url", conn.ConnectedUrl()),
 		zap.String("client_id", p.config.ClientID),
 		zap.Duration("connection_duration", connectionDuration),
@@ -157,7 +157,7 @@ func (p *publisher) Publish(ctx context.Context, subject string, data interface{
 
 	dataBytes, err := json.Marshal(dto)
 	if err != nil {
-		p.logger.Error("nats_event_marshaling_failed",
+		p.loggerFactory.Core().Error("nats_event_marshaling_failed",
 			zap.Error(err),
 			zap.String("subject", subject),
 			zap.String("component", "nats_publisher"),
@@ -165,7 +165,7 @@ func (p *publisher) Publish(ctx context.Context, subject string, data interface{
 		return fmt.Errorf("failed to marshal event data: %w", err)
 	}
 
-	p.logger.Debug("nats_event_publishing",
+	p.loggerFactory.Core().Debug("nats_event_publishing",
 		zap.String("subject", subject),
 		zap.Int("data_length_bytes", len(dataBytes)),
 		zap.String("component", "nats_publisher"),
@@ -182,8 +182,8 @@ func (p *publisher) Publish(ctx context.Context, subject string, data interface{
 	case err := <-done:
 		publishDuration := time.Since(start)
 		if err != nil {
-			p.logger.LogEventPublishing("", subject, "", false, err)
-			p.logger.Error("nats_event_publishing_failed",
+			p.loggerFactory.Messaging().LogEventPublishing("", subject, "", false, err)
+			p.loggerFactory.Core().Error("nats_event_publishing_failed",
 				zap.Error(err),
 				zap.String("subject", subject),
 				zap.Duration("publish_duration", publishDuration),
@@ -192,8 +192,8 @@ func (p *publisher) Publish(ctx context.Context, subject string, data interface{
 			return fmt.Errorf("failed to publish to subject %s: %w", subject, err)
 		}
 
-		p.logger.LogEventPublishing("", subject, "", true, nil)
-		p.logger.Debug("nats_event_published_successfully",
+		p.loggerFactory.Messaging().LogEventPublishing("", subject, "", true, nil)
+		p.loggerFactory.Core().Debug("nats_event_published_successfully",
 			zap.String("subject", subject),
 			zap.Duration("publish_duration", publishDuration),
 			zap.String("component", "nats_publisher"),
@@ -202,7 +202,7 @@ func (p *publisher) Publish(ctx context.Context, subject string, data interface{
 
 	case <-ctx.Done():
 		publishDuration := time.Since(start)
-		p.logger.Warn("nats_publish_operation_cancelled",
+		p.loggerFactory.Core().Warn("nats_publish_operation_cancelled",
 			zap.String("subject", subject),
 			zap.Error(ctx.Err()),
 			zap.Duration("cancelled_after", publishDuration),
@@ -229,7 +229,7 @@ func (p *publisher) Close(ctx context.Context) error {
 		return nil
 	}
 
-	p.logger.LogApplicationEvent("nats_publisher_closing", "nats_publisher",
+	p.loggerFactory.Application().LogApplicationEvent("nats_publisher_closing", "nats_publisher",
 		zap.String("server_url", p.config.URL),
 		zap.String("client_id", p.config.ClientID),
 	)
@@ -245,7 +245,7 @@ func (p *publisher) Close(ctx context.Context) error {
 	select {
 	case <-done:
 		p.conn = nil
-		p.logger.LogApplicationEvent("nats_publisher_closed", "nats_publisher",
+		p.loggerFactory.Application().LogApplicationEvent("nats_publisher_closed", "nats_publisher",
 			zap.String("server_url", p.config.URL),
 			zap.String("client_id", p.config.ClientID),
 			zap.Duration("close_duration", time.Since(start)),
@@ -256,7 +256,7 @@ func (p *publisher) Close(ctx context.Context) error {
 		// Force close if context timeout
 		p.conn.Close()
 		p.conn = nil
-		p.logger.Warn("nats_publisher_closed_timeout",
+		p.loggerFactory.Core().Warn("nats_publisher_closed_timeout",
 			zap.String("server_url", p.config.URL),
 			zap.String("client_id", p.config.ClientID),
 			zap.Duration("timeout_after", time.Since(start)),
