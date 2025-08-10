@@ -28,14 +28,15 @@ type Application struct {
 
 // Services holds all the business logic services
 type Services struct {
-	DeviceRepository          repositoryports.DeviceRepository
-	DeviceRegistrationUseCase deviceregistration.DeviceRegistrationUseCase
-	DeviceHealthUseCase       devicehealth.DeviceHealthUseCase
-	PingUseCase               ping.PingUseCase
-	MQTTConsumer              eventports.MessageConsumer
-	NATSPublisher             eventports.EventPublisher
-	NATSSubscriber            eventports.EventSubscriber
-	HealthChecker             ports.DeviceHealthChecker
+	DeviceRepository                    repositoryports.DeviceRepository
+	SensorTemperatureHumidityRepository repositoryports.SensorTemperatureHumidityRepository
+	DeviceRegistrationUseCase           deviceregistration.DeviceRegistrationUseCase
+	DeviceHealthUseCase                 devicehealth.DeviceHealthUseCase
+	PingUseCase                         ping.PingUseCase
+	MQTTConsumer                        eventports.MessageConsumer
+	NATSPublisher                       eventports.EventPublisher
+	NATSSubscriber                      eventports.EventSubscriber
+	HealthChecker                       ports.DeviceHealthChecker
 }
 
 // New creates a new application instance

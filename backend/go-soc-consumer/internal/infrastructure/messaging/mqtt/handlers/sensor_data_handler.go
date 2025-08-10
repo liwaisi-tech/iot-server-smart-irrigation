@@ -8,6 +8,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/entities"
+	temphumidityrepo "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/repositories"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/dtos"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
@@ -15,23 +16,15 @@ import (
 // SensorDataHandler handles temperature and humidity sensor data MQTT messages
 // This is a logging-only handler that processes and logs sensor data without persistence
 type SensorDataHandler struct {
-	sensorLogger logger.SensorLogger
-	coreLogger   logger.CoreLogger
+	coreLogger       logger.CoreLogger
+	tempHumidityRepo temphumidityrepo.SensorTemperatureHumidityRepository
 }
 
-// NewSensorDataHandler creates a new sensor data handler with domain-specific logger
-func NewSensorDataHandler(sensorLogger logger.SensorLogger, coreLogger logger.CoreLogger) *SensorDataHandler {
+// NewSensorDataHandler creates a sensor data handler using LoggerFactory
+func NewSensorDataHandler(loggerFactory logger.LoggerFactory, tempHumidityRepo temphumidityrepo.SensorTemperatureHumidityRepository) *SensorDataHandler {
 	return &SensorDataHandler{
-		sensorLogger: sensorLogger,
-		coreLogger:   coreLogger,
-	}
-}
-
-// NewSensorDataHandlerFromFactory creates a sensor data handler using LoggerFactory
-func NewSensorDataHandlerFromFactory(loggerFactory logger.LoggerFactory) *SensorDataHandler {
-	return &SensorDataHandler{
-		sensorLogger: loggerFactory.Sensor(),
-		coreLogger:   loggerFactory.Core(),
+		coreLogger:       loggerFactory.Core(),
+		tempHumidityRepo: tempHumidityRepo,
 	}
 }
 
@@ -54,14 +47,24 @@ func (h *SensorDataHandler) processSensorData(ctx context.Context, payload []byt
 	// Parse JSON payload
 	var msgData dtos.SensorDataMessage
 	if err := json.Unmarshal(payload, &msgData); err != nil {
-		h.sensorLogger.LogSensorDataProcessingError("unknown", payload, err, "json_unmarshal")
+		h.coreLogger.Error("sensor_data_processing_error",
+			zap.String("topic", "/liwaisi/iot/smart-irrigation/sensors/temperature-and-humidity"),
+			zap.String("payload", string(payload)),
+			zap.Error(err),
+			zap.String("component", "sensor_data_handler"),
+		)
 		return fmt.Errorf("failed to unmarshal sensor data message: %w", err)
 	}
 
 	// Validate event type
 	if msgData.EventType != "sensor_data" {
 		err := fmt.Errorf("invalid event type for sensor data: %s", msgData.EventType)
-		h.sensorLogger.LogSensorDataProcessingError(msgData.MacAddress, payload, err, "event_type_validation")
+		h.coreLogger.Error("sensor_data_processing_error",
+			zap.String("topic", "/liwaisi/iot/smart-irrigation/sensors/temperature-and-humidity"),
+			zap.String("payload", string(payload)),
+			zap.Error(err),
+			zap.String("component", "sensor_data_handler"),
+		)
 		return err
 	}
 
@@ -72,17 +75,24 @@ func (h *SensorDataHandler) processSensorData(ctx context.Context, payload []byt
 		msgData.Humidity,
 	)
 	if err != nil {
-		h.sensorLogger.LogSensorDataProcessingError(msgData.MacAddress, payload, err, "entity_creation")
+		h.coreLogger.Error("sensor_data_processing_error",
+			zap.String("topic", "/liwaisi/iot/smart-irrigation/sensors/temperature-and-humidity"),
+			zap.String("payload", string(payload)),
+			zap.Error(err),
+			zap.String("component", "sensor_data_handler"),
+		)
 		return fmt.Errorf("failed to create sensor data entity: %w", err)
 	}
 
-	// Log the sensor data with appropriate level based on readings
-	h.sensorLogger.LogSensorData(
-		sensorData.MacAddress(),
-		sensorData.Temperature(),
-		sensorData.Humidity(),
-		sensorData.HasAbnormalReadings(),
-	)
-
+	// Create a database record for the sensor data
+	if err := h.tempHumidityRepo.Create(ctx, sensorData); err != nil {
+		h.coreLogger.Error("sensor_data_processing_error",
+			zap.String("topic", "/liwaisi/iot/smart-irrigation/sensors/temperature-and-humidity"),
+			zap.String("payload", string(payload)),
+			zap.Error(err),
+			zap.String("component", "sensor_data_handler"),
+		)
+		return fmt.Errorf("failed to create sensor data record: %w", err)
+	}
 	return nil
 }

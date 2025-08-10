@@ -56,7 +56,7 @@ func (c *Container) GetServices() *Services {
 // Cleanup runs all cleanup functions
 func (c *Container) Cleanup() error {
 	c.loggerFactory.Application().LogApplicationEvent("container_cleanup_starting", "container")
-	
+
 	for i := len(c.cleanup) - 1; i >= 0; i-- {
 		if err := c.cleanup[i](); err != nil {
 			c.loggerFactory.Core().Error("container_cleanup_error",
@@ -67,7 +67,7 @@ func (c *Container) Cleanup() error {
 			return err
 		}
 	}
-	
+
 	c.loggerFactory.Application().LogApplicationEvent("container_cleanup_completed", "container")
 	return nil
 }
@@ -138,6 +138,7 @@ func (c *Container) buildRepository(services *Services) error {
 
 	// Initialize repository with logger factory
 	services.DeviceRepository = postgres.NewDeviceRepository(gormDB, c.loggerFactory)
+	services.SensorTemperatureHumidityRepository = postgres.NewSensorTemperatureHumidityRepository(gormDB, c.loggerFactory)
 
 	// Register cleanup
 	c.cleanup = append(c.cleanup, func() error {
@@ -190,7 +191,7 @@ func (c *Container) buildMQTTConsumer(services *Services) error {
 func (c *Container) buildNATSComponents(services *Services) {
 	// Use existing NATS config with defaults
 	natsConfig := messagingnats.DefaultNATSConfig()
-	
+
 	// Override with app config if provided
 	if len(c.config.NATS.URLs) > 0 {
 		natsConfig.URL = c.config.NATS.URLs[0] // Use first URL for now
@@ -247,7 +248,7 @@ func (c *Container) buildExternalDependencies(services *Services) error {
 		InitialDelay:  c.config.HealthCheck.InitialDelay,
 		UserAgent:     c.config.HealthCheck.UserAgent,
 	}
-	
+
 	services.HealthChecker = infrahttp.NewHealthClient(healthConfig, c.loggerFactory)
 	c.loggerFactory.Application().LogApplicationEvent("health_checker_initialized", "container",
 		zap.Duration("timeout", c.config.HealthCheck.Timeout),

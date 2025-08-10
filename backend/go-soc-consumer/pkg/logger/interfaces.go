@@ -23,13 +23,6 @@ type DeviceLogger interface {
 	LogDeviceStatus(macAddress, status string, fields ...zap.Field)
 }
 
-// SensorLogger handles sensor data logging operations
-type SensorLogger interface {
-	LogSensorData(macAddress string, temperature, humidity float64, hasAbnormalReadings bool)
-	LogSensorDataProcessingError(macAddress string, rawPayload []byte, err error, stage string)
-	LogSensorValidation(macAddress string, validationResults map[string]bool, fields ...zap.Field)
-}
-
 // MessagingLogger handles MQTT and NATS messaging logging
 type MessagingLogger interface {
 	LogMQTTMessage(topic string, payloadSize int, processingDuration time.Duration, success bool)
@@ -61,11 +54,9 @@ type ApplicationLogger interface {
 // LoggerFactory provides access to domain-specific loggers
 type LoggerFactory interface {
 	Device() DeviceLogger
-	Sensor() SensorLogger
 	Messaging() MessagingLogger
 	Infrastructure() InfrastructureLogger
 	Performance() PerformanceLogger
 	Application() ApplicationLogger
 	Core() CoreLogger
 }
-

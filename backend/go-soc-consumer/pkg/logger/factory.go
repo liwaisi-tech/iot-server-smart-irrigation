@@ -4,7 +4,6 @@ package logger
 type loggerFactory struct {
 	core           CoreLogger
 	device         DeviceLogger
-	sensor         SensorLogger
 	messaging      MessagingLogger
 	infrastructure InfrastructureLogger
 	performance    PerformanceLogger
@@ -21,7 +20,6 @@ func NewLoggerFactory(config LoggerConfig) (LoggerFactory, error) {
 	return &loggerFactory{
 		core:           core,
 		device:         NewDeviceLogger(core),
-		sensor:         NewSensorLogger(core),
 		messaging:      NewMessagingLogger(core),
 		infrastructure: NewInfrastructureLogger(core),
 		performance:    NewPerformanceLogger(core),
@@ -32,11 +30,6 @@ func NewLoggerFactory(config LoggerConfig) (LoggerFactory, error) {
 // Device returns the device logger
 func (f *loggerFactory) Device() DeviceLogger {
 	return f.device
-}
-
-// Sensor returns the sensor logger
-func (f *loggerFactory) Sensor() SensorLogger {
-	return f.sensor
 }
 
 // Messaging returns the messaging logger
@@ -63,7 +56,6 @@ func (f *loggerFactory) Application() ApplicationLogger {
 func (f *loggerFactory) Core() CoreLogger {
 	return f.core
 }
-
 
 // NewDefaultLoggerFactory creates a logger factory with default production configuration
 func NewDefaultLoggerFactory() (LoggerFactory, error) {

@@ -22,7 +22,6 @@ func TestLoggerFactory(t *testing.T) {
 		// Test all domain-specific loggers are created
 		assert.NotNil(t, factory.Core())
 		assert.NotNil(t, factory.Device())
-		assert.NotNil(t, factory.Sensor())
 		assert.NotNil(t, factory.Messaging())
 		assert.NotNil(t, factory.Infrastructure())
 		assert.NotNil(t, factory.Performance())
@@ -37,7 +36,6 @@ func TestLoggerFactory(t *testing.T) {
 		// Test all domain-specific loggers are created
 		assert.NotNil(t, factory.Core())
 		assert.NotNil(t, factory.Device())
-		assert.NotNil(t, factory.Sensor())
 		assert.NotNil(t, factory.Messaging())
 		assert.NotNil(t, factory.Infrastructure())
 		assert.NotNil(t, factory.Performance())
@@ -52,7 +50,6 @@ func TestLoggerFactory(t *testing.T) {
 		// Test all domain-specific loggers are created
 		assert.NotNil(t, factory.Core())
 		assert.NotNil(t, factory.Device())
-		assert.NotNil(t, factory.Sensor())
 		assert.NotNil(t, factory.Messaging())
 		assert.NotNil(t, factory.Infrastructure())
 		assert.NotNil(t, factory.Performance())
@@ -67,11 +64,6 @@ func TestLoggerFactory(t *testing.T) {
 		deviceLogger := factory.Device()
 		assert.NotNil(t, deviceLogger)
 		deviceLogger.LogDeviceRegistration("00:11:22:33:44:55", "TestDevice", "192.168.1.100", "Living Room", false)
-
-		// Test sensor logger methods
-		sensorLogger := factory.Sensor()
-		assert.NotNil(t, sensorLogger)
-		sensorLogger.LogSensorData("00:11:22:33:44:55", 25.5, 60.2, false)
 
 		// Test messaging logger methods
 		messagingLogger := factory.Messaging()
