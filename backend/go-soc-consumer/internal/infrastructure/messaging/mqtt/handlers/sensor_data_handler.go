@@ -66,7 +66,7 @@ func (h *SensorDataHandler) processSensorData(ctx context.Context, payload []byt
 	}
 
 	// Create domain entity with validation
-	sensorData, err := entities.NewSensorData(
+	sensorData, err := entities.NewSensorTemperatureHumidity(
 		msgData.MacAddress,
 		msgData.Temperature,
 		msgData.Humidity,

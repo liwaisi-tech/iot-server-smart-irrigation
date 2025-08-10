@@ -239,7 +239,7 @@ func TestUpdateDeviceStatus_RepositoryUpdateError(t *testing.T) {
 	err = impl.updateDeviceStatus(context.Background(), "AA:BB:CC:DD:EE:FF", false)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to save device status update")
+	assert.Contains(t, err.Error(), "failed to update device status")
 
 	repo.AssertExpectations(t)
 }

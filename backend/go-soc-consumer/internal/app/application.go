@@ -8,6 +8,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	eventports "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/events"
+	repositoryports "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/repositories"
 	devicehealth "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/device_health"
 	deviceregistration "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/device_registration"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/usecases/ping"
@@ -26,13 +28,13 @@ type Application struct {
 
 // Services holds all the business logic services
 type Services struct {
-	DeviceRepository          ports.DeviceRepository
+	DeviceRepository          repositoryports.DeviceRepository
 	DeviceRegistrationUseCase deviceregistration.DeviceRegistrationUseCase
 	DeviceHealthUseCase       devicehealth.DeviceHealthUseCase
 	PingUseCase               ping.PingUseCase
-	MQTTConsumer              ports.MessageConsumer
-	NATSPublisher             ports.EventPublisher
-	NATSSubscriber            ports.EventSubscriber
+	MQTTConsumer              eventports.MessageConsumer
+	NATSPublisher             eventports.EventPublisher
+	NATSSubscriber            eventports.EventSubscriber
 	HealthChecker             ports.DeviceHealthChecker
 }
 

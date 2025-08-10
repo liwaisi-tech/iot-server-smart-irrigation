@@ -11,7 +11,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	eventports "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/events"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/mocks"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
@@ -213,7 +213,7 @@ func TestMQTTConsumer_Subscribe(t *testing.T) {
 	tests := []struct {
 		name    string
 		topic   string
-		handler ports.MessageHandler
+		handler eventports.MessageHandler
 		setup   func(t *testing.T) (*MockMQTTClient, *MockMQTTToken)
 		wantErr bool
 		errMsg  string
@@ -498,7 +498,7 @@ func TestMessageConsumerInterface_Subscribe(t *testing.T) {
 	tests := []struct {
 		name    string
 		topic   string
-		handler ports.MessageHandler
+		handler eventports.MessageHandler
 		setup   func(*mocks.MockMessageConsumer)
 		wantErr bool
 		errMsg  string
@@ -639,10 +639,10 @@ func TestMessageConsumerInterface_ErrorHandling(t *testing.T) {
 
 // Example of how a service would use the MessageConsumer interface
 type SampleMessageService struct {
-	consumer ports.MessageConsumer
+	consumer eventports.MessageConsumer
 }
 
-func NewSampleMessageService(consumer ports.MessageConsumer) *SampleMessageService {
+func NewSampleMessageService(consumer eventports.MessageConsumer) *SampleMessageService {
 	return &SampleMessageService{consumer: consumer}
 }
 

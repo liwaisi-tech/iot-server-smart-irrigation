@@ -9,7 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	ports "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/events"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/messaging/nats/mappers"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 	"github.com/nats-io/nats.go"
@@ -109,7 +109,7 @@ func (p *publisher) connect() error {
 	start := time.Now()
 	conn, err := nats.Connect(p.config.URL, opts...)
 	connectionDuration := time.Since(start)
-	
+
 	if err != nil {
 		p.loggerFactory.Core().Error("nats_publisher_connection_failed",
 			zap.Error(err),

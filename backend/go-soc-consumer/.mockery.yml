@@ -11,6 +11,12 @@ recursive: false
 require-template-schema-exists: false
 template: testify
 packages:
+  github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/events:
+    config:
+      all: true
+  github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/repositories:
+    config:
+      all: true
   github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports:
     config:
       all: true

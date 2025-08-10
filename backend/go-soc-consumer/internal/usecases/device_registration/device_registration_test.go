@@ -55,9 +55,9 @@ func TestUseCase_RegisterDevice_NewDevice(t *testing.T) {
 					Return(nil, errors.New("device not found")).
 					Once()
 
-				// Save new device successfully
+				// Create new device successfully
 				mockRepo.EXPECT().
-					Save(mock.Anything, mock.AnythingOfType("*entities.Device")).
+					Create(mock.Anything, mock.AnythingOfType("*entities.Device")).
 					Return(nil).
 					Once()
 			},
@@ -79,14 +79,14 @@ func TestUseCase_RegisterDevice_NewDevice(t *testing.T) {
 					Return(nil, errors.New("device not found")).
 					Once()
 
-				// Save fails
+				// Create fails
 				mockRepo.EXPECT().
-					Save(mock.Anything, mock.AnythingOfType("*entities.Device")).
+					Create(mock.Anything, mock.AnythingOfType("*entities.Device")).
 					Return(errors.New("database error")).
 					Once()
 			},
 			wantErr: true,
-			errMsg:  "failed to save new device",
+			errMsg:  "failed to create new device",
 		},
 	}
 
@@ -249,7 +249,7 @@ func TestUseCase_createNewDevice(t *testing.T) {
 			},
 			setup: func(mockRepo *mocks.MockDeviceRepository) {
 				mockRepo.EXPECT().
-					Save(mock.Anything, mock.MatchedBy(func(device *entities.Device) bool {
+					Create(mock.Anything, mock.MatchedBy(func(device *entities.Device) bool {
 						return device.MACAddress == "AA:BB:CC:DD:EE:FF" &&
 							device.DeviceName == "Test Device" &&
 							device.IPAddress == "192.168.1.100" &&
@@ -271,7 +271,7 @@ func TestUseCase_createNewDevice(t *testing.T) {
 				ReceivedAt:          time.Now(),
 			},
 			setup: func(mockRepo *mocks.MockDeviceRepository) {
-				// No expectations - ToDevice should fail before calling Save
+				// No expectations - ToDevice should fail before calling Create
 			},
 			wantErr: true,
 			errMsg:  "failed to convert message to device",
@@ -422,9 +422,9 @@ func TestMessageHandler_HandleDeviceRegistration(t *testing.T) {
 					Return(nil, errors.New("device not found")).
 					Once()
 
-				// Save new device successfully
+				// Create new device successfully
 				mockRepo.EXPECT().
-					Save(mock.Anything, mock.AnythingOfType("*entities.Device")).
+					Create(mock.Anything, mock.AnythingOfType("*entities.Device")).
 					Return(nil).
 					Once()
 			},
@@ -446,14 +446,14 @@ func TestMessageHandler_HandleDeviceRegistration(t *testing.T) {
 					Return(nil, errors.New("device not found")).
 					Once()
 
-				// Save fails
+				// Create fails
 				mockRepo.EXPECT().
-					Save(mock.Anything, mock.AnythingOfType("*entities.Device")).
+					Create(mock.Anything, mock.AnythingOfType("*entities.Device")).
 					Return(errors.New("database error")).
 					Once()
 			},
 			wantErr: true,
-			errMsg:  "failed to save new device",
+			errMsg:  "failed to create new device",
 		},
 	}
 
@@ -503,9 +503,9 @@ func TestUseCase_RegisterDevice_EdgeCases(t *testing.T) {
 			Return(nil, context.Canceled).
 			Once()
 
-		// The use case will still try to save since it treats any FindByMACAddress error as "not found"
+		// The use case will still try to create since it treats any FindByMACAddress error as "not found"
 		mockRepo.EXPECT().
-			Save(mock.Anything, mock.AnythingOfType("*entities.Device")).
+			Create(mock.Anything, mock.AnythingOfType("*entities.Device")).
 			Return(context.Canceled).
 			Once()
 
@@ -540,7 +540,7 @@ func BenchmarkUseCase_RegisterDevice_NewDevice(b *testing.B) {
 		Times(b.N)
 
 	mockRepo.EXPECT().
-		Save(mock.Anything, mock.AnythingOfType("*entities.Device")).
+		Create(mock.Anything, mock.AnythingOfType("*entities.Device")).
 		Return(nil).
 		Times(b.N)
 

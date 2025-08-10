@@ -9,6 +9,7 @@ import (
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/entities"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	repositoryports "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/repositories"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
@@ -32,7 +33,7 @@ type DeviceHealthUseCase interface {
 
 // useCaseImpl implements the DeviceHealthUseCase interface
 type useCaseImpl struct {
-	deviceRepo    ports.DeviceRepository
+	deviceRepo    repositoryports.DeviceRepository
 	healthChecker ports.DeviceHealthChecker
 	config        *HealthCheckConfig
 	loggerFactory logger.LoggerFactory
@@ -41,7 +42,7 @@ type useCaseImpl struct {
 
 // NewDeviceHealthUseCase creates a new device health use case
 func NewDeviceHealthUseCase(
-	deviceRepo ports.DeviceRepository,
+	deviceRepo repositoryports.DeviceRepository,
 	healthChecker ports.DeviceHealthChecker,
 	config *HealthCheckConfig,
 	loggerFactory logger.LoggerFactory,
@@ -181,7 +182,7 @@ func (uc *useCaseImpl) updateDeviceStatus(ctx context.Context, macAddress string
 
 	// Save updated device to repository
 	if err := uc.deviceRepo.Update(ctx, device); err != nil {
-		return fmt.Errorf("failed to save device status update: %w", err)
+		return fmt.Errorf("failed to update device status: %w", err)
 	}
 
 	uc.loggerFactory.Core().Info("device_status_updated_successfully",

@@ -8,7 +8,7 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"go.uber.org/zap"
 
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	eventports "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/events"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
@@ -29,7 +29,7 @@ type MQTTConsumerConfig struct {
 type MQTTConsumerImpl struct {
 	config        MQTTConsumerConfig
 	client        mqtt.Client
-	handler       ports.MessageHandler
+	handler       eventports.MessageHandler
 	loggerFactory logger.LoggerFactory
 }
 
@@ -110,7 +110,7 @@ func (m *MQTTConsumerImpl) Stop(ctx context.Context) error {
 }
 
 // Subscribe subscribes to a specific topic with a message handler
-func (m *MQTTConsumerImpl) Subscribe(ctx context.Context, topic string, handler ports.MessageHandler) error {
+func (m *MQTTConsumerImpl) Subscribe(ctx context.Context, topic string, handler eventports.MessageHandler) error {
 	if !m.client.IsConnected() {
 		return fmt.Errorf("MQTT client is not connected")
 	}
@@ -121,7 +121,7 @@ func (m *MQTTConsumerImpl) Subscribe(ctx context.Context, topic string, handler 
 	messageHandler := func(client mqtt.Client, msg mqtt.Message) {
 		start := time.Now()
 		payloadSize := len(msg.Payload())
-		
+
 		m.loggerFactory.Core().Debug("mqtt_message_received",
 			zap.String("topic", msg.Topic()),
 			zap.Int("payload_size_bytes", payloadSize),
@@ -130,9 +130,9 @@ func (m *MQTTConsumerImpl) Subscribe(ctx context.Context, topic string, handler 
 
 		err := m.handler(ctx, msg.Topic(), msg.Payload())
 		processingDuration := time.Since(start)
-		
+
 		m.loggerFactory.Messaging().LogMQTTMessage(msg.Topic(), payloadSize, processingDuration, err == nil)
-		
+
 		if err != nil {
 			m.loggerFactory.Core().Error("mqtt_message_processing_error",
 				zap.Error(err),

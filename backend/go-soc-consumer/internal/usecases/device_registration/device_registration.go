@@ -8,7 +8,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/entities"
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	eventports "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/events"
+	repositoryports "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/repositories"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
@@ -19,13 +20,13 @@ type DeviceRegistrationUseCase interface {
 
 // UseCase handles device registration business logic
 type useCaseImpl struct {
-	deviceRepo     ports.DeviceRepository
-	eventPublisher ports.EventPublisher
+	deviceRepo     repositoryports.DeviceRepository
+	eventPublisher eventports.EventPublisher
 	loggerFactory  logger.LoggerFactory
 }
 
 // NewDeviceRegistrationUseCase creates a new device registration use case
-func NewDeviceRegistrationUseCase(deviceRepo ports.DeviceRepository, eventPublisher ports.EventPublisher, loggerFactory logger.LoggerFactory) *useCaseImpl {
+func NewDeviceRegistrationUseCase(deviceRepo repositoryports.DeviceRepository, eventPublisher eventports.EventPublisher, loggerFactory logger.LoggerFactory) *useCaseImpl {
 	return &useCaseImpl{
 		deviceRepo:     deviceRepo,
 		eventPublisher: eventPublisher,
@@ -36,7 +37,7 @@ func NewDeviceRegistrationUseCase(deviceRepo ports.DeviceRepository, eventPublis
 // RegisterDevice processes a device registration message
 func (uc *useCaseImpl) RegisterDevice(ctx context.Context, message *entities.DeviceRegistrationMessage) error {
 	start := time.Now()
-	
+
 	uc.loggerFactory.Core().Info("device_registration_started",
 		zap.String("mac_address", message.MACAddress),
 		zap.String("device_name", message.DeviceName),
@@ -57,7 +58,7 @@ func (uc *useCaseImpl) RegisterDevice(ctx context.Context, message *entities.Dev
 		)
 		err := uc.updateExistingDevice(ctx, existingDevice, message)
 		processingDuration := time.Since(start)
-		
+
 		if err != nil {
 			uc.loggerFactory.Core().Error("device_update_failed",
 				zap.Error(err),
@@ -79,7 +80,7 @@ func (uc *useCaseImpl) RegisterDevice(ctx context.Context, message *entities.Dev
 	)
 	err = uc.createNewDevice(ctx, message)
 	processingDuration := time.Since(start)
-	
+
 	if err != nil {
 		uc.loggerFactory.Core().Error("device_creation_failed",
 			zap.Error(err),
@@ -101,15 +102,15 @@ func (uc *useCaseImpl) createNewDevice(ctx context.Context, message *entities.De
 		return fmt.Errorf("failed to convert message to device: %w", err)
 	}
 
-	// Save device to repository
-	if err := uc.deviceRepo.Save(ctx, device); err != nil {
-		uc.loggerFactory.Core().Error("failed_to_save_new_device",
+	// Create device in repository
+	if err := uc.deviceRepo.Create(ctx, device); err != nil {
+		uc.loggerFactory.Core().Error("failed_to_create_new_device",
 			zap.Error(err),
 			zap.String("mac_address", device.GetID()),
 			zap.String("device_name", device.GetDeviceName()),
 			zap.String("component", "device_registration_usecase"),
 		)
-		return fmt.Errorf("failed to save new device: %w", err)
+		return fmt.Errorf("failed to create new device: %w", err)
 	}
 
 	uc.loggerFactory.Core().Info("new_device_registered_successfully",

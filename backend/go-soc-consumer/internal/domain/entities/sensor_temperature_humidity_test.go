@@ -119,8 +119,8 @@ func TestNewSensorData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sensorData, err := NewSensorData(tt.macAddress, tt.temperature, tt.humidity)
-			
+			sensorData, err := NewSensorTemperatureHumidity(tt.macAddress, tt.temperature, tt.humidity)
+
 			if tt.wantErr {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
@@ -128,7 +128,7 @@ func TestNewSensorData(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, sensorData)
-				
+
 				// Verify normalized MAC address (should be uppercase and preserve original format)
 				expectedMAC := strings.ToUpper(strings.TrimSpace(tt.macAddress))
 				assert.Equal(t, expectedMAC, sensorData.MacAddress())
@@ -140,7 +140,7 @@ func TestNewSensorData(t *testing.T) {
 	}
 }
 
-func TestSensorData_IsTemperatureNormal(t *testing.T) {
+func TestSensorTemperatureHumidity_IsTemperatureNormal(t *testing.T) {
 	tests := []struct {
 		name        string
 		temperature float64
@@ -155,15 +155,15 @@ func TestSensorData_IsTemperatureNormal(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sensorData, err := NewSensorData("A0:A3:B3:AB:2F:D8", tt.temperature, 50.0)
+			sensorData, err := NewSensorTemperatureHumidity("A0:A3:B3:AB:2F:D8", tt.temperature, 50.0)
 			require.NoError(t, err)
-			
+
 			assert.Equal(t, tt.want, sensorData.IsTemperatureNormal())
 		})
 	}
 }
 
-func TestSensorData_IsHumidityNormal(t *testing.T) {
+func TestSensorTemperatureHumidity_IsHumidityNormal(t *testing.T) {
 	tests := []struct {
 		name     string
 		humidity float64
@@ -178,15 +178,15 @@ func TestSensorData_IsHumidityNormal(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sensorData, err := NewSensorData("A0:A3:B3:AB:2F:D8", 25.0, tt.humidity)
+			sensorData, err := NewSensorTemperatureHumidity("A0:A3:B3:AB:2F:D8", 25.0, tt.humidity)
 			require.NoError(t, err)
-			
+
 			assert.Equal(t, tt.want, sensorData.IsHumidityNormal())
 		})
 	}
 }
 
-func TestSensorData_HasAbnormalReadings(t *testing.T) {
+func TestSensorTemperatureHumidity_HasAbnormalReadings(t *testing.T) {
 	tests := []struct {
 		name        string
 		temperature float64
@@ -204,31 +204,31 @@ func TestSensorData_HasAbnormalReadings(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sensorData, err := NewSensorData("A0:A3:B3:AB:2F:D8", tt.temperature, tt.humidity)
+			sensorData, err := NewSensorTemperatureHumidity("A0:A3:B3:AB:2F:D8", tt.temperature, tt.humidity)
 			require.NoError(t, err)
-			
+
 			assert.Equal(t, tt.want, sensorData.HasAbnormalReadings())
 		})
 	}
 }
 
-func TestSensorData_String(t *testing.T) {
-	sensorData, err := NewSensorData("A0:A3:B3:AB:2F:D8", 28.8, 72.3)
+func TestSensorTemperatureHumidity_String(t *testing.T) {
+	sensorData, err := NewSensorTemperatureHumidity("A0:A3:B3:AB:2F:D8", 28.8, 72.3)
 	require.NoError(t, err)
 
 	str := sensorData.String()
 	assert.Contains(t, str, "A0:A3:B3:AB:2F:D8")
 	assert.Contains(t, str, "28.80°C")
 	assert.Contains(t, str, "72.30%")
-	assert.Contains(t, str, "SensorData{")
+	assert.Contains(t, str, "SensorTemperatureHumidity{")
 }
 
-func TestSensorData_Accessors(t *testing.T) {
+func TestSensorTemperatureHumidity_Accessors(t *testing.T) {
 	macAddr := "A0:A3:B3:AB:2F:D8"
 	temp := 28.8
 	humidity := 72.3
-	
-	sensorData, err := NewSensorData(macAddr, temp, humidity)
+
+	sensorData, err := NewSensorTemperatureHumidity(macAddr, temp, humidity)
 	require.NoError(t, err)
 
 	assert.Equal(t, macAddr, sensorData.MacAddress())
@@ -237,7 +237,7 @@ func TestSensorData_Accessors(t *testing.T) {
 	assert.False(t, sensorData.Timestamp().IsZero())
 }
 
-func TestSensorData_MACAddressNormalization(t *testing.T) {
+func TestSensorTemperatureHumidity_MACAddressNormalization(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
@@ -251,7 +251,7 @@ func TestSensorData_MACAddressNormalization(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sensorData, err := NewSensorData(tt.input, 25.0, 50.0)
+			sensorData, err := NewSensorTemperatureHumidity(tt.input, 25.0, 50.0)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, sensorData.MacAddress())
 		})

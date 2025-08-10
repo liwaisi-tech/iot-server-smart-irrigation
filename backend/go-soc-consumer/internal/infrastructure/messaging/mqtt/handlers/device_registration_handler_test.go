@@ -419,7 +419,7 @@ func TestDeviceRegistrationHandler_RealUseCaseIntegration(t *testing.T) {
 
 	// Setup mock expectations
 	mockRepo.EXPECT().FindByMACAddress(mock.Anything, "AA:BB:CC:DD:EE:FF").Return(nil, nil).Once()
-	mockRepo.EXPECT().Save(mock.Anything, mock.MatchedBy(func(device *entities.Device) bool {
+	mockRepo.EXPECT().Create(mock.Anything, mock.MatchedBy(func(device *entities.Device) bool {
 		return device.MACAddress == "AA:BB:CC:DD:EE:FF" &&
 			device.DeviceName == "Real Integration Device" &&
 			device.IPAddress == "192.168.1.250" &&

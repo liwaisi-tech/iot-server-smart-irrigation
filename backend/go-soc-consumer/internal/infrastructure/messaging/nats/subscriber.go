@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 
-	"github.com/nats-io/nats.go"
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports"
+	eventports "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/domain/ports/events"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
@@ -24,7 +24,7 @@ type subscriber struct {
 }
 
 // NewNATSSubscriber creates a new NATS event subscriber
-func NewNATSSubscriber(config *NATSConfig, loggerFactory logger.LoggerFactory) (ports.EventSubscriber, error) {
+func NewNATSSubscriber(config *NATSConfig, loggerFactory logger.LoggerFactory) (eventports.EventSubscriber, error) {
 	if config == nil {
 		config = DefaultNATSConfig()
 	}
@@ -126,12 +126,12 @@ func (s *subscriber) connect() error {
 		zap.String("server_url", conn.ConnectedUrl()),
 		zap.String("client_id", s.config.ClientID),
 	)
-	
+
 	return nil
 }
 
 // Subscribe subscribes to events from the specified subject
-func (s *subscriber) Subscribe(ctx context.Context, subject string, handler ports.MessageHandler) error {
+func (s *subscriber) Subscribe(ctx context.Context, subject string, handler eventports.MessageHandler) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -156,7 +156,7 @@ func (s *subscriber) Subscribe(ctx context.Context, subject string, handler port
 	natsHandler := func(msg *nats.Msg) {
 		start := time.Now()
 		payloadSize := len(msg.Data)
-		
+
 		s.loggerFactory.Core().Debug("nats_message_received",
 			zap.String("subject", msg.Subject),
 			zap.Int("data_length_bytes", payloadSize),
@@ -169,7 +169,7 @@ func (s *subscriber) Subscribe(ctx context.Context, subject string, handler port
 
 		err := handler(msgCtx, msg.Subject, msg.Data)
 		processingDuration := time.Since(start)
-		
+
 		if err != nil {
 			s.loggerFactory.Core().Error("nats_message_processing_error",
 				zap.Error(err),
@@ -198,7 +198,7 @@ func (s *subscriber) Subscribe(ctx context.Context, subject string, handler port
 		zap.String("subject", subject),
 		zap.String("client_id", s.config.ClientID),
 	)
-	
+
 	return nil
 }
 
@@ -234,7 +234,7 @@ func (s *subscriber) Unsubscribe(ctx context.Context, subject string) error {
 		zap.String("client_id", s.config.ClientID),
 		zap.Duration("unsubscription_duration", time.Since(start)),
 	)
-	
+
 	return nil
 }
 
@@ -242,7 +242,7 @@ func (s *subscriber) Unsubscribe(ctx context.Context, subject string) error {
 func (s *subscriber) IsConnected() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	return s.conn != nil && s.conn.IsConnected()
 }
 
@@ -301,6 +301,6 @@ func (s *subscriber) Stop(ctx context.Context) error {
 
 	s.started = false
 	s.loggerFactory.Application().LogApplicationEvent("nats_subscriber_stopped", "nats_subscriber")
-	
+
 	return ctx.Err()
 }

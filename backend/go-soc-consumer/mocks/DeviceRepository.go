@@ -38,6 +38,63 @@ func (_m *MockDeviceRepository) EXPECT() *MockDeviceRepository_Expecter {
 	return &MockDeviceRepository_Expecter{mock: &_m.Mock}
 }
 
+// Create provides a mock function for the type MockDeviceRepository
+func (_mock *MockDeviceRepository) Create(ctx context.Context, device *entities.Device) error {
+	ret := _mock.Called(ctx, device)
+
+	if len(ret) == 0 {
+		panic("no return value specified for Create")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *entities.Device) error); ok {
+		r0 = returnFunc(ctx, device)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockDeviceRepository_Create_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Create'
+type MockDeviceRepository_Create_Call struct {
+	*mock.Call
+}
+
+// Create is a helper method to define mock.On call
+//   - ctx context.Context
+//   - device *entities.Device
+func (_e *MockDeviceRepository_Expecter) Create(ctx interface{}, device interface{}) *MockDeviceRepository_Create_Call {
+	return &MockDeviceRepository_Create_Call{Call: _e.mock.On("Create", ctx, device)}
+}
+
+func (_c *MockDeviceRepository_Create_Call) Run(run func(ctx context.Context, device *entities.Device)) *MockDeviceRepository_Create_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *entities.Device
+		if args[1] != nil {
+			arg1 = args[1].(*entities.Device)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockDeviceRepository_Create_Call) Return(err error) *MockDeviceRepository_Create_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockDeviceRepository_Create_Call) RunAndReturn(run func(ctx context.Context, device *entities.Device) error) *MockDeviceRepository_Create_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Delete provides a mock function for the type MockDeviceRepository
 func (_mock *MockDeviceRepository) Delete(ctx context.Context, macAddress string) error {
 	ret := _mock.Called(ctx, macAddress)
@@ -299,63 +356,6 @@ func (_c *MockDeviceRepository_List_Call) Return(devices []*entities.Device, err
 }
 
 func (_c *MockDeviceRepository_List_Call) RunAndReturn(run func(ctx context.Context, offset int, limit int) ([]*entities.Device, error)) *MockDeviceRepository_List_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// Save provides a mock function for the type MockDeviceRepository
-func (_mock *MockDeviceRepository) Save(ctx context.Context, device *entities.Device) error {
-	ret := _mock.Called(ctx, device)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Save")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *entities.Device) error); ok {
-		r0 = returnFunc(ctx, device)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// MockDeviceRepository_Save_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Save'
-type MockDeviceRepository_Save_Call struct {
-	*mock.Call
-}
-
-// Save is a helper method to define mock.On call
-//   - ctx context.Context
-//   - device *entities.Device
-func (_e *MockDeviceRepository_Expecter) Save(ctx interface{}, device interface{}) *MockDeviceRepository_Save_Call {
-	return &MockDeviceRepository_Save_Call{Call: _e.mock.On("Save", ctx, device)}
-}
-
-func (_c *MockDeviceRepository_Save_Call) Run(run func(ctx context.Context, device *entities.Device)) *MockDeviceRepository_Save_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 *entities.Device
-		if args[1] != nil {
-			arg1 = args[1].(*entities.Device)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *MockDeviceRepository_Save_Call) Return(err error) *MockDeviceRepository_Save_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *MockDeviceRepository_Save_Call) RunAndReturn(run func(ctx context.Context, device *entities.Device) error) *MockDeviceRepository_Save_Call {
 	_c.Call.Return(run)
 	return _c
 }
