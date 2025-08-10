@@ -64,7 +64,7 @@ func (a *Application) startMessageConsumers(ctx context.Context) error {
 	}
 
 	// Subscribe to device registration topic
-	deviceRegistrationHandler := messaginghandlers.NewDeviceRegistrationHandler(a.services.DeviceRegistrationUseCase)
+	deviceRegistrationHandler := messaginghandlers.NewDeviceRegistrationHandler(a.loggerFactory, a.services.DeviceRegistrationUseCase)
 	deviceRegistrationTopic := "/liwaisi/iot/smart-irrigation/device/registration"
 
 	a.loggerFactory.Application().LogApplicationEvent("mqtt_topic_subscribing", "application",

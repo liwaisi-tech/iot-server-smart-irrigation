@@ -24,7 +24,7 @@ func TestNewDeviceRegistrationHandler(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, loggerFactory)
 	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo, mockPublisher, loggerFactory)
-	handler := NewDeviceRegistrationHandler(realUseCase)
+	handler := NewDeviceRegistrationHandler(loggerFactory, realUseCase)
 
 	assert.NotNil(t, handler, "NewDeviceRegistrationHandler() returned nil")
 	assert.NotNil(t, handler.useCase, "NewDeviceRegistrationHandler() did not set useCase")
@@ -33,7 +33,10 @@ func TestNewDeviceRegistrationHandler(t *testing.T) {
 func TestDeviceRegistrationHandler_HandleMessage_ValidTopic(t *testing.T) {
 	// Create a mock use case for testing
 	mockUseCase := mocks.NewMockDeviceRegistrationUseCase(t)
-	handler := NewDeviceRegistrationHandler(mockUseCase)
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
+	require.NoError(t, err)
+	require.NotNil(t, loggerFactory)
+	handler := NewDeviceRegistrationHandler(loggerFactory, mockUseCase)
 
 	validPayload := map[string]interface{}{
 		"event_type":           "register",
@@ -59,7 +62,10 @@ func TestDeviceRegistrationHandler_HandleMessage_ValidTopic(t *testing.T) {
 func TestDeviceRegistrationHandler_HandleMessage_UnknownTopic(t *testing.T) {
 	// Create a mock use case for testing
 	mockUseCase := mocks.NewMockDeviceRegistrationUseCase(t)
-	handler := NewDeviceRegistrationHandler(mockUseCase)
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
+	require.NoError(t, err)
+	require.NotNil(t, loggerFactory)
+	handler := NewDeviceRegistrationHandler(loggerFactory, mockUseCase)
 
 	validPayload := map[string]interface{}{
 		"event_type":           "register",
@@ -132,7 +138,10 @@ func TestDeviceRegistrationHandler_processDeviceRegistration_ValidPayload(t *tes
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a mock use case for testing
 			mockUseCase := mocks.NewMockDeviceRegistrationUseCase(t)
-			handler := NewDeviceRegistrationHandler(mockUseCase)
+			loggerFactory, err := logger.NewDevelopmentLoggerFactory()
+			require.NoError(t, err)
+			require.NotNil(t, loggerFactory)
+			handler := NewDeviceRegistrationHandler(loggerFactory, mockUseCase)
 
 			expectedMAC := tt.payload["mac_address"].(string)
 			if expectedMAC == "aa:bb:cc:dd:ee:ff" {
@@ -161,8 +170,11 @@ func TestDeviceRegistrationHandler_processDeviceRegistration_ValidPayload(t *tes
 
 func TestDeviceRegistrationHandler_processDeviceRegistration_MalformedJSON(t *testing.T) {
 	// Create a mock use case for testing
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
+	require.NoError(t, err)
+	require.NotNil(t, loggerFactory)
 	mockUseCase := mocks.NewMockDeviceRegistrationUseCase(t)
-	handler := NewDeviceRegistrationHandler(mockUseCase)
+	handler := NewDeviceRegistrationHandler(loggerFactory, mockUseCase)
 
 	malformedPayloads := []struct {
 		name    string
@@ -198,8 +210,11 @@ func TestDeviceRegistrationHandler_processDeviceRegistration_MalformedJSON(t *te
 
 func TestDeviceRegistrationHandler_processDeviceRegistration_InvalidEventType(t *testing.T) {
 	// Create a mock use case for testing
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
+	require.NoError(t, err)
+	require.NotNil(t, loggerFactory)
 	mockUseCase := mocks.NewMockDeviceRegistrationUseCase(t)
-	handler := NewDeviceRegistrationHandler(mockUseCase)
+	handler := NewDeviceRegistrationHandler(loggerFactory, mockUseCase)
 
 	invalidEventTypes := []struct {
 		name      string
@@ -239,8 +254,11 @@ func TestDeviceRegistrationHandler_processDeviceRegistration_InvalidEventType(t 
 
 func TestDeviceRegistrationHandler_processDeviceRegistration_InvalidDeviceData(t *testing.T) {
 	// Create a mock use case for testing
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
+	require.NoError(t, err)
+	require.NotNil(t, loggerFactory)
 	mockUseCase := mocks.NewMockDeviceRegistrationUseCase(t)
-	handler := NewDeviceRegistrationHandler(mockUseCase)
+	handler := NewDeviceRegistrationHandler(loggerFactory, mockUseCase)
 
 	invalidPayloads := []struct {
 		name    string
@@ -350,7 +368,10 @@ func TestDeviceRegistrationHandler_processDeviceRegistration_InvalidDeviceData(t
 func TestDeviceRegistrationHandler_processDeviceRegistration_UseCaseError(t *testing.T) {
 	// Create a mock use case that returns an error
 	mockUseCase := mocks.NewMockDeviceRegistrationUseCase(t)
-	handler := NewDeviceRegistrationHandler(mockUseCase)
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
+	require.NoError(t, err)
+	require.NotNil(t, loggerFactory)
+	handler := NewDeviceRegistrationHandler(loggerFactory, mockUseCase)
 
 	payload := map[string]interface{}{
 		"event_type":           "register",
@@ -369,13 +390,16 @@ func TestDeviceRegistrationHandler_processDeviceRegistration_UseCaseError(t *tes
 	err = handler.processDeviceRegistration(ctx, payloadBytes)
 
 	require.Error(t, err, "processDeviceRegistration() expected error from use case but got none")
-	assert.Equal(t, "use case processing failed", err.Error(), "processDeviceRegistration() error message mismatch")
+	assert.Equal(t, "failed to register device: use case processing failed", err.Error(), "processDeviceRegistration() error message mismatch")
 }
 
 func TestDeviceRegistrationHandler_Integration(t *testing.T) {
 	// This test verifies the full integration from HandleMessage to processDeviceRegistration
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
+	require.NoError(t, err)
+	require.NotNil(t, loggerFactory)
 	mockUseCase := mocks.NewMockDeviceRegistrationUseCase(t)
-	handler := NewDeviceRegistrationHandler(mockUseCase)
+	handler := NewDeviceRegistrationHandler(loggerFactory, mockUseCase)
 
 	payload := map[string]interface{}{
 		"event_type":           "register",
@@ -407,7 +431,7 @@ func TestDeviceRegistrationHandler_RealUseCaseIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, loggerFactory)
 	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo, mockPublisher, loggerFactory)
-	handler := NewDeviceRegistrationHandler(realUseCase)
+	handler := NewDeviceRegistrationHandler(loggerFactory, realUseCase)
 
 	payload := map[string]interface{}{
 		"event_type":           "register",
