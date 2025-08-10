@@ -21,7 +21,6 @@ func (m *SensorTemperatureHumidityMapper) ToModel(sensorData *entities.SensorTem
 		TemperatureCelsius: sensorData.Temperature(),
 		HumidityPercent:    sensorData.Humidity(),
 		CreatedAt:          sensorData.Timestamp(),
-		UpdatedAt:          sensorData.Timestamp(),
 	}
 }
 

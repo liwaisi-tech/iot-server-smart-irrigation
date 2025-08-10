@@ -52,8 +52,6 @@ func initDatabase(cfg *config.DatabaseConfig, infraLogger pkglogger.Infrastructu
 			SingularTable: false, // Use plural table names (devices, not device)
 			NoLowerCase:   false, // Convert field names to lowercase
 		},
-		// Disable foreign key constraints for this simple use case
-		DisableForeignKeyConstraintWhenMigrating: true,
 	}
 
 	// Open GORM connection

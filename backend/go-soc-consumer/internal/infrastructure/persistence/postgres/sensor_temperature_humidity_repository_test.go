@@ -108,12 +108,12 @@ func TestSensorTemperatureHumidityRepository_Create_Success(t *testing.T) {
 	// Create valid sensor data
 	sensor := createTestSensorData()
 
-	// Expect the exact INSERT shape and RETURNING created_at, updated_at
+	// Expect the exact INSERT shape and RETURNING created_at only (no updated_at in model)
 	mock.ExpectQuery(
-		`INSERT INTO "sensor_temperature_humidity" \("mac_address","temperature_celsius","humidity_percent","deleted_at","created_at","updated_at"\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6\) RETURNING "created_at","updated_at"`,
+		`INSERT INTO "sensor_temperature_humidity" \("mac_address","temperature_celsius","humidity_percent","deleted_at","created_at"\) VALUES \(\$1,\$2,\$3,\$4,\$5\) RETURNING "created_at"`,
 	).
-		WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at"}).
-			AddRow(time.Now(), time.Now()))
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).
+			AddRow(time.Now()))
 
 	err := repo.Create(context.Background(), sensor)
 
@@ -132,9 +132,9 @@ func TestSensorTemperatureHumidityRepository_Create_ZeroRowsAffected(t *testing.
 
 	// Expect INSERT that returns no rows (RowsAffected = 0)
 	mock.ExpectQuery(
-		`INSERT INTO "sensor_temperature_humidity" \("mac_address","temperature_celsius","humidity_percent","deleted_at","created_at","updated_at"\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6\) RETURNING "created_at","updated_at"`,
+		`INSERT INTO "sensor_temperature_humidity" \("mac_address","temperature_celsius","humidity_percent","deleted_at","created_at"\) VALUES \(\$1,\$2,\$3,\$4,\$5\) RETURNING "created_at"`,
 	).
-		WillReturnRows(sqlmock.NewRows([]string{"created_at", "updated_at"}))
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}))
 
 	err := repo.Create(context.Background(), sensor)
 

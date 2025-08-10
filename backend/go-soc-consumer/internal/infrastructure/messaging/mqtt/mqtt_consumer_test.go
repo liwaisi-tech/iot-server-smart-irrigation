@@ -141,7 +141,8 @@ func TestNewMQTTConsumer(t *testing.T) {
 	assert.NotNil(t, consumer)
 	assert.Equal(t, config, consumer.config)
 	assert.Nil(t, consumer.client)
-	assert.Nil(t, consumer.handler)
+	assert.NotNil(t, consumer.handlers)
+	assert.Empty(t, consumer.handlers)
 }
 
 // TestMQTTConsumer_Stop tests the Stop method
@@ -291,7 +292,7 @@ func TestMQTTConsumer_Subscribe(t *testing.T) {
 				assert.Contains(t, err.Error(), tt.errMsg)
 			} else {
 				assert.NoError(t, err)
-				assert.NotNil(t, consumer.handler)
+				assert.Contains(t, consumer.handlers, tt.topic)
 			}
 
 			// Mock expectations are automatically checked via cleanup functions
@@ -458,7 +459,7 @@ func TestMQTTConsumer_MessageHandling(t *testing.T) {
 			return handlerError
 		}
 
-		consumer.handler = testHandler
+		consumer.handlers["test/topic"] = testHandler
 
 		// Test that our handler works correctly
 		err := testHandler(context.Background(), "test/topic", []byte("test payload"))
@@ -481,7 +482,7 @@ func TestMQTTConsumer_MessageHandling(t *testing.T) {
 			return errors.New("handler error")
 		}
 
-		consumer.handler = testHandler
+		consumer.handlers["test/topic"] = testHandler
 
 		// Test that the handler returns the expected error
 		err := testHandler(context.Background(), "test/topic", []byte("test payload"))
@@ -713,7 +714,7 @@ func BenchmarkMQTTConsumer_MessageHandling(b *testing.B) {
 		return nil
 	}
 
-	consumer.handler = testHandler
+	consumer.handlers["benchmark/topic"] = testHandler
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

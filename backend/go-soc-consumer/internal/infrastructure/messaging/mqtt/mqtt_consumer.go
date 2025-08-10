@@ -29,7 +29,7 @@ type MQTTConsumerConfig struct {
 type MQTTConsumerImpl struct {
 	config        MQTTConsumerConfig
 	client        mqtt.Client
-	handler       eventports.MessageHandler
+	handlers      map[string]eventports.MessageHandler
 	loggerFactory logger.LoggerFactory
 }
 
@@ -37,6 +37,7 @@ type MQTTConsumerImpl struct {
 func NewMQTTConsumer(config MQTTConsumerConfig, loggerFactory logger.LoggerFactory) *MQTTConsumerImpl {
 	return &MQTTConsumerImpl{
 		config:        config,
+		handlers:      make(map[string]eventports.MessageHandler),
 		loggerFactory: loggerFactory,
 	}
 }
@@ -115,7 +116,8 @@ func (m *MQTTConsumerImpl) Subscribe(ctx context.Context, topic string, handler 
 		return fmt.Errorf("MQTT client is not connected")
 	}
 
-	m.handler = handler
+	// Store the handler for this specific topic
+	m.handlers[topic] = handler
 
 	// Create message handler function
 	messageHandler := func(client mqtt.Client, msg mqtt.Message) {
@@ -128,7 +130,17 @@ func (m *MQTTConsumerImpl) Subscribe(ctx context.Context, topic string, handler 
 			zap.String("component", "mqtt_consumer"),
 		)
 
-		err := m.handler(ctx, msg.Topic(), msg.Payload())
+		// Get the appropriate handler for this topic
+		topicHandler, exists := m.handlers[msg.Topic()]
+		if !exists {
+			m.loggerFactory.Core().Error("no_handler_for_topic",
+				zap.String("topic", msg.Topic()),
+				zap.String("component", "mqtt_consumer"),
+			)
+			return
+		}
+
+		err := topicHandler(ctx, msg.Topic(), msg.Payload())
 		processingDuration := time.Since(start)
 
 		m.loggerFactory.Messaging().LogMQTTMessage(msg.Topic(), payloadSize, processingDuration, err == nil)
@@ -183,6 +195,9 @@ func (m *MQTTConsumerImpl) Unsubscribe(topic string) error {
 		)
 		return fmt.Errorf("failed to unsubscribe from topic %s: %w", topic, token.Error())
 	}
+
+	// Remove the handler from the map
+	delete(m.handlers, topic)
 
 	m.loggerFactory.Application().LogApplicationEvent("mqtt_topic_unsubscribed", "mqtt_consumer",
 		zap.String("topic", topic),
