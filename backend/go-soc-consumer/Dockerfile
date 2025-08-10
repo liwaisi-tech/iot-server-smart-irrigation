@@ -1,6 +1,11 @@
 # Build stage
 FROM golang:1.23.11-alpine AS builder
 
+# Accept build arguments for target platform
+ARG TARGETPLATFORM
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+
 # Install build dependencies and security tools
 RUN apk add --no-cache \
     git \
@@ -19,9 +24,8 @@ WORKDIR /app
 # Copy go mod files for dependency caching
 COPY go.mod go.sum ./
 
-# Download dependencies with module cache
-RUN --mount=type=cache,target=/go/pkg/mod \
-    go mod download && \
+# Download dependencies
+RUN go mod download && \
     go mod verify
 
 # Copy source code (exclude unnecessary files)
@@ -30,11 +34,9 @@ COPY internal/ ./internal/
 COPY pkg/ ./pkg/
 
 # Build optimized binary with security flags
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 \
-    GOOS=linux \
-    GOARCH=amd64 \
+RUN CGO_ENABLED=0 \
+    GOOS=${TARGETOS} \
+    GOARCH=${TARGETARCH} \
     go build \
     -ldflags='-w -s -extldflags "-static"' \
     -a -installsuffix cgo \
