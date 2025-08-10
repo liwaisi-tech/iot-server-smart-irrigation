@@ -27,18 +27,18 @@ func TestNewDeviceHealthUseCase(t *testing.T) {
 	config := &HealthCheckConfig{
 		MaxConcurrent: 5,
 	}
-	testLogger, err := logger.NewDevelopmentLogger()
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
 	assert.NoError(t, err)
-	assert.NotNil(t, testLogger)
+	assert.NotNil(t, loggerFactory)
 
-	uc := NewDeviceHealthUseCase(repo, checker, config, testLogger)
+	uc := NewDeviceHealthUseCase(repo, checker, config, loggerFactory)
 
 	require.NotNil(t, uc)
 	impl := uc.(*useCaseImpl)
 	assert.Equal(t, repo, impl.deviceRepo)
 	assert.Equal(t, checker, impl.healthChecker)
 	assert.Equal(t, config, impl.config)
-	assert.Equal(t, testLogger, impl.logger)
+	assert.Equal(t, loggerFactory, impl.loggerFactory)
 	assert.NotNil(t, impl.semaphore)
 }
 
@@ -56,7 +56,7 @@ func TestNewDeviceHealthUseCase_NilConfig(t *testing.T) {
 	assert.Equal(t, defaultConfig.MaxConcurrent, impl.config.MaxConcurrent)
 
 	// Should use default logger
-	assert.NotNil(t, impl.logger)
+	assert.NotNil(t, impl.loggerFactory)
 }
 
 func TestNewDeviceHealthUseCase_NilLogger(t *testing.T) {
@@ -68,7 +68,7 @@ func TestNewDeviceHealthUseCase_NilLogger(t *testing.T) {
 
 	require.NotNil(t, uc)
 	impl := uc.(*useCaseImpl)
-	assert.NotNil(t, impl.logger)
+	assert.NotNil(t, impl.loggerFactory)
 }
 
 func TestProcessDeviceDetectedEvent_ValidEvent(t *testing.T) {

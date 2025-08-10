@@ -13,12 +13,14 @@ import (
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/persistence/postgres/models"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/config"
+	pkglogger "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
 // GormPostgresDB wraps the GORM database connection and provides additional functionality
 type GormPostgresDB struct {
 	db     *gorm.DB
 	config *config.DatabaseConfig
+	logger pkglogger.InfrastructureLogger
 }
 
 var (
@@ -29,15 +31,20 @@ var (
 )
 
 // NewGormPostgresDBWithoutConfig creates a new GORM PostgreSQL database connection without a config for testing purposes
-func NewGormPostgresDBWithoutConfig(db *gorm.DB) (*GormPostgresDB, error) {
+func NewGormPostgresDBWithoutConfig(db *gorm.DB, infraLogger pkglogger.InfrastructureLogger) (*GormPostgresDB, error) {
+	if infraLogger == nil {
+		return nil, fmt.Errorf("infrastructure logger cannot be nil")
+	}
+	
 	return &GormPostgresDB{
 		db:     db,
 		config: nil,
+		logger: infraLogger,
 	}, nil
 }
 
 // initDatabase handles the actual database initialization
-func initDatabase(cfg *config.DatabaseConfig) (*GormPostgresDB, error) {
+func initDatabase(cfg *config.DatabaseConfig, infraLogger pkglogger.InfrastructureLogger) (*GormPostgresDB, error) {
 	// Configure GORM
 	gormConfig := &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
@@ -50,10 +57,16 @@ func initDatabase(cfg *config.DatabaseConfig) (*GormPostgresDB, error) {
 	}
 
 	// Open GORM connection
+	start := time.Now()
 	db, err := gorm.Open(postgres.Open(cfg.GetDSN()), gormConfig)
+	connectionDuration := time.Since(start)
+	
 	if err != nil {
+		infraLogger.LogExternalAPICall("postgres", "connection", 0, connectionDuration, err)
 		return nil, fmt.Errorf("failed to open GORM database connection: %w", err)
 	}
+	
+	infraLogger.LogExternalAPICall("postgres", "connection", 200, connectionDuration, nil)
 
 	// Get the underlying sql.DB to configure connection pool
 	sqlDB, err := db.DB()
@@ -70,6 +83,7 @@ func initDatabase(cfg *config.DatabaseConfig) (*GormPostgresDB, error) {
 	gormDB := &GormPostgresDB{
 		db:     db,
 		config: cfg,
+		logger: infraLogger,
 	}
 
 	// Test the connection
@@ -77,6 +91,7 @@ func initDatabase(cfg *config.DatabaseConfig) (*GormPostgresDB, error) {
 	defer cancel()
 
 	if err := gormDB.Ping(ctx); err != nil {
+		infraLogger.LogExternalAPICall("postgres", "initial_ping", 0, time.Since(start), err)
 		sqlDB.Close()
 		return nil, fmt.Errorf("failed to ping GORM database: %w", err)
 	}
@@ -85,9 +100,12 @@ func initDatabase(cfg *config.DatabaseConfig) (*GormPostgresDB, error) {
 }
 
 // NewGormPostgresDB creates a new GORM PostgreSQL database connection using singleton pattern
-func NewGormPostgresDB(cfg *config.DatabaseConfig) (*GormPostgresDB, error) {
+func NewGormPostgresDB(cfg *config.DatabaseConfig, loggerFactory pkglogger.LoggerFactory) (*GormPostgresDB, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("database configuration cannot be nil")
+	}
+	if loggerFactory == nil {
+		return nil, fmt.Errorf("logger factory cannot be nil")
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -104,9 +122,10 @@ func NewGormPostgresDB(cfg *config.DatabaseConfig) (*GormPostgresDB, error) {
 			return
 		}
 
-		// Initialize the database
+		// Initialize the database with infrastructure logger
 		var err error
-		instance, err = initDatabase(cfg)
+		infraLogger := loggerFactory.Infrastructure()
+		instance, err = initDatabase(cfg, infraLogger)
 		if err != nil {
 			initError = fmt.Errorf("failed to initialize database: %w", err)
 		}
@@ -132,11 +151,22 @@ func (g *GormPostgresDB) GetDB() *gorm.DB {
 
 // Ping tests the database connection
 func (g *GormPostgresDB) Ping(ctx context.Context) error {
+	start := time.Now()
 	sqlDB, err := g.db.DB()
 	if err != nil {
 		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
 	}
-	return sqlDB.PingContext(ctx)
+	
+	err = sqlDB.PingContext(ctx)
+	duration := time.Since(start)
+	
+	if err != nil {
+		g.logger.LogExternalAPICall("postgres", "ping", 0, duration, err)
+		return fmt.Errorf("ping failed: %w", err)
+	}
+	
+	g.logger.LogExternalAPICall("postgres", "ping", 200, duration, nil)
+	return nil
 }
 
 // Close closes the database connection
@@ -150,33 +180,56 @@ func (g *GormPostgresDB) Close() error {
 
 // AutoMigrate runs GORM auto-migrations for all registered models
 func (g *GormPostgresDB) AutoMigrate() error {
+	start := time.Now()
 	// Simple GORM AutoMigrate
-	return g.db.AutoMigrate(&models.DeviceModel{})
+	err := g.db.AutoMigrate(&models.DeviceModel{})
+	duration := time.Since(start)
+	
+	if err != nil {
+		g.logger.LogDatabaseOperation("auto_migrate", "devices", duration, 0, err)
+		return fmt.Errorf("auto migration failed: %w", err)
+	}
+	
+	g.logger.LogDatabaseOperation("auto_migrate", "devices", duration, 1, nil)
+	return nil
 }
 
 // HealthCheck performs a basic health check on the database
 func (g *GormPostgresDB) HealthCheck(ctx context.Context) error {
+	start := time.Now()
 	// Simple query to test database connectivity and basic functionality
 	var result int
 	err := g.db.WithContext(ctx).Raw("SELECT 1").Scan(&result).Error
+	duration := time.Since(start)
+	
 	if err != nil {
+		g.logger.LogDatabaseOperation("health_check", "postgres", duration, 0, err)
 		return fmt.Errorf("health check failed: %w", err)
 	}
 
 	if result != 1 {
+		g.logger.LogDatabaseOperation("health_check", "postgres", duration, 0, fmt.Errorf("unexpected result %d", result))
 		return fmt.Errorf("health check failed: unexpected result %d", result)
 	}
 
+	g.logger.LogDatabaseOperation("health_check", "postgres", duration, 1, nil)
 	return nil
 }
 
 // GetStats returns database connection pool statistics
 func (g *GormPostgresDB) GetStats() (interface{}, error) {
+	start := time.Now()
 	sqlDB, err := g.db.DB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
 	}
-	return sqlDB.Stats(), nil
+	
+	stats := sqlDB.Stats()
+	duration := time.Since(start)
+	
+	// Log connection pool statistics gathering
+	g.logger.LogDatabaseOperation("get_stats", "connection_pool", duration, int64(stats.OpenConnections), nil)
+	return stats, nil
 }
 
 // BeginTx starts a database transaction with GORM

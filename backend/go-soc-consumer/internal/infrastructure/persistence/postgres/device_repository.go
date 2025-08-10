@@ -15,22 +15,24 @@ import (
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/database"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/persistence/postgres/mappers"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/persistence/postgres/models"
-	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
+	pkglogger "github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
 // DeviceRepository implements the DeviceRepository interface using GORM PostgreSQL
 type DeviceRepository struct {
-	db     *database.GormPostgresDB
-	mapper *mappers.DeviceMapper
-	logger *logger.IoTLogger
+	db       *database.GormPostgresDB
+	mapper   *mappers.DeviceMapper
+	infraLog pkglogger.InfrastructureLogger
+	coreLog  pkglogger.CoreLogger
 }
 
 // NewDeviceRepository creates a new GORM-based PostgreSQL device repository
-func NewDeviceRepository(db *database.GormPostgresDB, logger *logger.IoTLogger) ports.DeviceRepository {
+func NewDeviceRepository(db *database.GormPostgresDB, loggerFactory pkglogger.LoggerFactory) ports.DeviceRepository {
 	return &DeviceRepository{
-		db:     db,
-		mapper: mappers.NewDeviceMapper(),
-		logger: logger,
+		db:       db,
+		mapper:   mappers.NewDeviceMapper(),
+		infraLog: loggerFactory.Infrastructure(),
+		coreLog:  loggerFactory.Core(),
 	}
 }
 
@@ -57,15 +59,15 @@ func (r *DeviceRepository) Save(ctx context.Context, device *entities.Device) er
 	if result.Error != nil {
 		// Handle GORM-specific errors
 		if errors.Is(result.Error, gorm.ErrDuplicatedKey) {
-			r.logger.LogDatabaseOperation("create", "devices", duration, 0, domainerrors.ErrDeviceAlreadyExists)
+			r.infraLog.LogDatabaseOperation("create", "devices", duration, 0, domainerrors.ErrDeviceAlreadyExists)
 			return domainerrors.ErrDeviceAlreadyExists
 		}
-		r.logger.LogDatabaseOperation("create", "devices", duration, 0, result.Error)
+		r.infraLog.LogDatabaseOperation("create", "devices", duration, 0, result.Error)
 		return fmt.Errorf("failed to save device: %w", result.Error)
 	}
 
-	r.logger.LogDatabaseOperation("create", "devices", duration, result.RowsAffected, nil)
-	r.logger.Debug("device_saved_successfully",
+	r.infraLog.LogDatabaseOperation("create", "devices", duration, result.RowsAffected, nil)
+	r.coreLog.Debug("device_saved_successfully",
 		zap.String("mac_address", device.GetID()),
 		zap.String("device_name", device.GetDeviceName()),
 		zap.String("component", "device_repository"),
@@ -95,18 +97,18 @@ func (r *DeviceRepository) Update(ctx context.Context, device *entities.Device) 
 	duration := time.Since(start)
 	
 	if result.Error != nil {
-		r.logger.LogDatabaseOperation("update", "devices", duration, 0, result.Error)
+		r.infraLog.LogDatabaseOperation("update", "devices", duration, 0, result.Error)
 		return fmt.Errorf("failed to update device: %w", result.Error)
 	}
 
 	// Check if any rows were affected
 	if result.RowsAffected == 0 {
-		r.logger.LogDatabaseOperation("update", "devices", duration, 0, domainerrors.ErrDeviceNotFound)
+		r.infraLog.LogDatabaseOperation("update", "devices", duration, 0, domainerrors.ErrDeviceNotFound)
 		return domainerrors.ErrDeviceNotFound
 	}
 
-	r.logger.LogDatabaseOperation("update", "devices", duration, result.RowsAffected, nil)
-	r.logger.Debug("device_updated_successfully",
+	r.infraLog.LogDatabaseOperation("update", "devices", duration, result.RowsAffected, nil)
+	r.coreLog.Debug("device_updated_successfully",
 		zap.String("mac_address", device.GetID()),
 		zap.String("device_name", device.GetDeviceName()),
 		zap.String("component", "device_repository"),
@@ -127,14 +129,14 @@ func (r *DeviceRepository) FindByMACAddress(ctx context.Context, macAddress stri
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			r.logger.LogDatabaseOperation("find_by_mac", "devices", duration, 0, domainerrors.ErrDeviceNotFound)
+			r.infraLog.LogDatabaseOperation("find_by_mac", "devices", duration, 0, domainerrors.ErrDeviceNotFound)
 			return nil, domainerrors.ErrDeviceNotFound
 		}
-		r.logger.LogDatabaseOperation("find_by_mac", "devices", duration, 0, result.Error)
+		r.infraLog.LogDatabaseOperation("find_by_mac", "devices", duration, 0, result.Error)
 		return nil, fmt.Errorf("failed to find device by MAC address: %w", result.Error)
 	}
 
-	r.logger.LogDatabaseOperation("find_by_mac", "devices", duration, 1, nil)
+	r.infraLog.LogDatabaseOperation("find_by_mac", "devices", duration, 1, nil)
 	// Convert GORM model to domain entity
 	device := r.mapper.FromModel(&model)
 	return device, nil
@@ -153,11 +155,11 @@ func (r *DeviceRepository) Exists(ctx context.Context, macAddress string) (bool,
 	duration := time.Since(start)
 
 	if result.Error != nil {
-		r.logger.LogDatabaseOperation("exists", "devices", duration, 0, result.Error)
+		r.infraLog.LogDatabaseOperation("exists", "devices", duration, 0, result.Error)
 		return false, fmt.Errorf("failed to check device existence: %w", result.Error)
 	}
 
-	r.logger.LogDatabaseOperation("exists", "devices", duration, count, nil)
+	r.infraLog.LogDatabaseOperation("exists", "devices", duration, count, nil)
 	return count > 0, nil
 }
 
@@ -186,12 +188,12 @@ func (r *DeviceRepository) List(ctx context.Context, offset, limit int) ([]*enti
 	duration := time.Since(start)
 	
 	if result.Error != nil {
-		r.logger.LogDatabaseOperation("list", "devices", duration, 0, result.Error)
+		r.infraLog.LogDatabaseOperation("list", "devices", duration, 0, result.Error)
 		return nil, fmt.Errorf("failed to list devices: %w", result.Error)
 	}
 
-	r.logger.LogDatabaseOperation("list", "devices", duration, result.RowsAffected, nil)
-	r.logger.Debug("devices_listed_successfully",
+	r.infraLog.LogDatabaseOperation("list", "devices", duration, result.RowsAffected, nil)
+	r.coreLog.Debug("devices_listed_successfully",
 		zap.Int("count", len(models)),
 		zap.Int("limit", limit),
 		zap.Int("offset", offset),
@@ -215,17 +217,17 @@ func (r *DeviceRepository) Delete(ctx context.Context, macAddress string) error 
 	duration := time.Since(start)
 	
 	if result.Error != nil {
-		r.logger.LogDatabaseOperation("delete", "devices", duration, 0, result.Error)
+		r.infraLog.LogDatabaseOperation("delete", "devices", duration, 0, result.Error)
 		return fmt.Errorf("failed to delete device: %w", result.Error)
 	}
 
 	if result.RowsAffected == 0 {
-		r.logger.LogDatabaseOperation("delete", "devices", duration, 0, domainerrors.ErrDeviceNotFound)
+		r.infraLog.LogDatabaseOperation("delete", "devices", duration, 0, domainerrors.ErrDeviceNotFound)
 		return domainerrors.ErrDeviceNotFound
 	}
 
-	r.logger.LogDatabaseOperation("delete", "devices", duration, result.RowsAffected, nil)
-	r.logger.Debug("device_deleted_successfully",
+	r.infraLog.LogDatabaseOperation("delete", "devices", duration, result.RowsAffected, nil)
+	r.coreLog.Debug("device_deleted_successfully",
 		zap.String("mac_address", macAddress),
 		zap.String("deletion_type", "soft"),
 		zap.String("component", "device_repository"),
@@ -245,17 +247,17 @@ func (r *DeviceRepository) HardDelete(ctx context.Context, macAddress string) er
 	duration := time.Since(start)
 	
 	if result.Error != nil {
-		r.logger.LogDatabaseOperation("hard_delete", "devices", duration, 0, result.Error)
+		r.infraLog.LogDatabaseOperation("hard_delete", "devices", duration, 0, result.Error)
 		return fmt.Errorf("failed to hard delete device: %w", result.Error)
 	}
 
 	if result.RowsAffected == 0 {
-		r.logger.LogDatabaseOperation("hard_delete", "devices", duration, 0, domainerrors.ErrDeviceNotFound)
+		r.infraLog.LogDatabaseOperation("hard_delete", "devices", duration, 0, domainerrors.ErrDeviceNotFound)
 		return domainerrors.ErrDeviceNotFound
 	}
 
-	r.logger.LogDatabaseOperation("hard_delete", "devices", duration, result.RowsAffected, nil)
-	r.logger.Debug("device_hard_deleted_successfully",
+	r.infraLog.LogDatabaseOperation("hard_delete", "devices", duration, result.RowsAffected, nil)
+	r.coreLog.Debug("device_hard_deleted_successfully",
 		zap.String("mac_address", macAddress),
 		zap.String("deletion_type", "hard"),
 		zap.String("component", "device_repository"),

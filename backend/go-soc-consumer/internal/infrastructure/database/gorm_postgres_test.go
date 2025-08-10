@@ -11,6 +11,7 @@ import (
 
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/internal/infrastructure/persistence/postgres/models"
 	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/config"
+	"github.com/liwaisi-tech/iot-server-smart-irrigation/backend/go-soc-consumer/pkg/logger"
 )
 
 func TestGormPostgresDB_Integration(t *testing.T) {
@@ -33,8 +34,12 @@ func TestGormPostgresDB_Integration(t *testing.T) {
 		ConnMaxIdleTime: 1 * time.Minute,
 	}
 
+	// Create test logger factory
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
+	require.NoError(t, err)
+
 	// Initialize GORM database
-	gormDB, err := NewGormPostgresDB(cfg)
+	gormDB, err := NewGormPostgresDB(cfg, loggerFactory)
 	if err != nil {
 		t.Skipf("Failed to connect to test database: %v", err)
 	}
@@ -127,8 +132,12 @@ func TestGormPostgresDB_ValidationHooks(t *testing.T) {
 		ConnMaxIdleTime: 1 * time.Minute,
 	}
 
+	// Create test logger factory
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
+	require.NoError(t, err)
+
 	// Initialize GORM database
-	gormDB, err := NewGormPostgresDB(cfg)
+	gormDB, err := NewGormPostgresDB(cfg, loggerFactory)
 	if err != nil {
 		t.Skipf("Failed to connect to test database: %v", err)
 	}

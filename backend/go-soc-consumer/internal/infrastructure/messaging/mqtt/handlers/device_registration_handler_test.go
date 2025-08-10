@@ -20,10 +20,10 @@ func TestNewDeviceRegistrationHandler(t *testing.T) {
 	// Create a real use case with a mock repository for testing
 	mockRepo := mocks.NewMockDeviceRepository(t)
 	mockPublisher := mocks.NewMockEventPublisher(t)
-	testLogger, err := logger.NewDevelopmentLogger()
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
 	assert.NoError(t, err)
-	assert.NotNil(t, testLogger)
-	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo, mockPublisher, testLogger)
+	assert.NotNil(t, loggerFactory)
+	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo, mockPublisher, loggerFactory)
 	handler := NewDeviceRegistrationHandler(realUseCase)
 
 	assert.NotNil(t, handler, "NewDeviceRegistrationHandler() returned nil")
@@ -403,10 +403,10 @@ func TestDeviceRegistrationHandler_RealUseCaseIntegration(t *testing.T) {
 	// This test uses a real use case with mock repository to test full integration
 	mockRepo := mocks.NewMockDeviceRepository(t)
 	mockPublisher := mocks.NewMockEventPublisher(t)
-	testLogger, err := logger.NewDevelopmentLogger()
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
 	require.NoError(t, err)
-	require.NotNil(t, testLogger)
-	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo, mockPublisher, testLogger)
+	require.NotNil(t, loggerFactory)
+	realUseCase := deviceregistration.NewDeviceRegistrationUseCase(mockRepo, mockPublisher, loggerFactory)
 	handler := NewDeviceRegistrationHandler(realUseCase)
 
 	payload := map[string]interface{}{

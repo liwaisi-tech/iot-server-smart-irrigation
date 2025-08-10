@@ -27,17 +27,17 @@ type MQTTConsumerConfig struct {
 
 // MQTTConsumerImpl implements the MessageConsumer port
 type MQTTConsumerImpl struct {
-	config  MQTTConsumerConfig
-	client  mqtt.Client
-	handler ports.MessageHandler
-	logger  *logger.IoTLogger
+	config        MQTTConsumerConfig
+	client        mqtt.Client
+	handler       ports.MessageHandler
+	loggerFactory logger.LoggerFactory
 }
 
 // NewMQTTConsumer creates a new MQTT consumer
-func NewMQTTConsumer(config MQTTConsumerConfig, logger *logger.IoTLogger) *MQTTConsumerImpl {
+func NewMQTTConsumer(config MQTTConsumerConfig, loggerFactory logger.LoggerFactory) *MQTTConsumerImpl {
 	return &MQTTConsumerImpl{
-		config: config,
-		logger: logger,
+		config:        config,
+		loggerFactory: loggerFactory,
 	}
 }
 
@@ -56,7 +56,7 @@ func (m *MQTTConsumerImpl) Start(ctx context.Context) error {
 
 	// Set connection lost handler
 	opts.SetConnectionLostHandler(func(client mqtt.Client, err error) {
-		m.logger.Error("mqtt_connection_lost",
+		m.loggerFactory.Core().Error("mqtt_connection_lost",
 			zap.Error(err),
 			zap.String("broker_url", m.config.BrokerURL),
 			zap.String("client_id", m.config.ClientID),
@@ -66,7 +66,7 @@ func (m *MQTTConsumerImpl) Start(ctx context.Context) error {
 
 	// Set on connect handler
 	opts.SetOnConnectHandler(func(client mqtt.Client) {
-		m.logger.LogApplicationEvent("mqtt_connected", "mqtt_consumer",
+		m.loggerFactory.Application().LogApplicationEvent("mqtt_connected", "mqtt_consumer",
 			zap.String("broker_url", m.config.BrokerURL),
 			zap.String("client_id", m.config.ClientID),
 		)
@@ -78,7 +78,7 @@ func (m *MQTTConsumerImpl) Start(ctx context.Context) error {
 	// Connect to broker
 	start := time.Now()
 	if token := m.client.Connect(); token.Wait() && token.Error() != nil {
-		m.logger.Error("mqtt_connection_failed",
+		m.loggerFactory.Core().Error("mqtt_connection_failed",
 			zap.Error(token.Error()),
 			zap.String("broker_url", m.config.BrokerURL),
 			zap.String("client_id", m.config.ClientID),
@@ -88,7 +88,7 @@ func (m *MQTTConsumerImpl) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to connect to MQTT broker: %w", token.Error())
 	}
 
-	m.logger.LogApplicationEvent("mqtt_broker_connected", "mqtt_consumer",
+	m.loggerFactory.Application().LogApplicationEvent("mqtt_broker_connected", "mqtt_consumer",
 		zap.String("broker_url", m.config.BrokerURL),
 		zap.String("client_id", m.config.ClientID),
 		zap.Duration("connection_duration", time.Since(start)),
@@ -101,7 +101,7 @@ func (m *MQTTConsumerImpl) Stop(ctx context.Context) error {
 	if m.client != nil && m.client.IsConnected() {
 		start := time.Now()
 		m.client.Disconnect(250) // Wait 250ms for graceful disconnect
-		m.logger.LogApplicationEvent("mqtt_consumer_stopped", "mqtt_consumer",
+		m.loggerFactory.Application().LogApplicationEvent("mqtt_consumer_stopped", "mqtt_consumer",
 			zap.Duration("shutdown_duration", time.Since(start)),
 			zap.String("client_id", m.config.ClientID),
 		)
@@ -122,7 +122,7 @@ func (m *MQTTConsumerImpl) Subscribe(ctx context.Context, topic string, handler 
 		start := time.Now()
 		payloadSize := len(msg.Payload())
 		
-		m.logger.Debug("mqtt_message_received",
+		m.loggerFactory.Core().Debug("mqtt_message_received",
 			zap.String("topic", msg.Topic()),
 			zap.Int("payload_size_bytes", payloadSize),
 			zap.String("component", "mqtt_consumer"),
@@ -131,10 +131,10 @@ func (m *MQTTConsumerImpl) Subscribe(ctx context.Context, topic string, handler 
 		err := m.handler(ctx, msg.Topic(), msg.Payload())
 		processingDuration := time.Since(start)
 		
-		m.logger.LogMQTTMessage(msg.Topic(), payloadSize, processingDuration, err == nil)
+		m.loggerFactory.Messaging().LogMQTTMessage(msg.Topic(), payloadSize, processingDuration, err == nil)
 		
 		if err != nil {
-			m.logger.Error("mqtt_message_processing_error",
+			m.loggerFactory.Core().Error("mqtt_message_processing_error",
 				zap.Error(err),
 				zap.String("topic", msg.Topic()),
 				zap.Int("payload_size_bytes", payloadSize),
@@ -147,7 +147,7 @@ func (m *MQTTConsumerImpl) Subscribe(ctx context.Context, topic string, handler 
 	// Subscribe to topic
 	start := time.Now()
 	if token := m.client.Subscribe(topic, 1, messageHandler); token.Wait() && token.Error() != nil {
-		m.logger.Error("mqtt_subscription_failed",
+		m.loggerFactory.Core().Error("mqtt_subscription_failed",
 			zap.Error(token.Error()),
 			zap.String("topic", topic),
 			zap.String("client_id", m.config.ClientID),
@@ -157,7 +157,7 @@ func (m *MQTTConsumerImpl) Subscribe(ctx context.Context, topic string, handler 
 		return fmt.Errorf("failed to subscribe to topic %s: %w", topic, token.Error())
 	}
 
-	m.logger.LogApplicationEvent("mqtt_topic_subscribed", "mqtt_consumer",
+	m.loggerFactory.Application().LogApplicationEvent("mqtt_topic_subscribed", "mqtt_consumer",
 		zap.String("topic", topic),
 		zap.String("client_id", m.config.ClientID),
 		zap.Duration("subscription_duration", time.Since(start)),
@@ -174,7 +174,7 @@ func (m *MQTTConsumerImpl) Unsubscribe(topic string) error {
 
 	start := time.Now()
 	if token := m.client.Unsubscribe(topic); token.Wait() && token.Error() != nil {
-		m.logger.Error("mqtt_unsubscription_failed",
+		m.loggerFactory.Core().Error("mqtt_unsubscription_failed",
 			zap.Error(token.Error()),
 			zap.String("topic", topic),
 			zap.String("client_id", m.config.ClientID),
@@ -184,7 +184,7 @@ func (m *MQTTConsumerImpl) Unsubscribe(topic string) error {
 		return fmt.Errorf("failed to unsubscribe from topic %s: %w", topic, token.Error())
 	}
 
-	m.logger.LogApplicationEvent("mqtt_topic_unsubscribed", "mqtt_consumer",
+	m.loggerFactory.Application().LogApplicationEvent("mqtt_topic_unsubscribed", "mqtt_consumer",
 		zap.String("topic", topic),
 		zap.String("client_id", m.config.ClientID),
 		zap.Duration("unsubscription_duration", time.Since(start)),

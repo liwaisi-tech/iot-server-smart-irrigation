@@ -21,38 +21,38 @@ func setupTestRepository(t *testing.T) (*DeviceRepository, sqlmock.Sqlmock) {
 	assert.NotNil(t, gormMockDB)
 	assert.NotNil(t, sqkmockDB)
 
-	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB)
+	// Create test logger factory
+	testLoggerFactory := createTestLoggerFactory(t)
+
+	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB, testLoggerFactory.Infrastructure())
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	// Create test logger
-	testLogger, err := logger.NewDevelopmentLogger()
-	assert.NoError(t, err)
-	assert.NotNil(t, testLogger)
-
-	deviceRepository := NewDeviceRepository(postgresDB, testLogger).(*DeviceRepository)
+	deviceRepository := NewDeviceRepository(postgresDB, testLoggerFactory).(*DeviceRepository)
 	assert.NotNil(t, deviceRepository)
 
 	return deviceRepository, sqkmockDB
 }
 
-// createTestLogger creates a test logger for use in tests
-func createTestLogger(t *testing.T) *logger.IoTLogger {
-	testLogger, err := logger.NewDevelopmentLogger()
+// createTestLoggerFactory creates a test logger factory for use in tests
+func createTestLoggerFactory(t *testing.T) logger.LoggerFactory {
+	loggerFactory, err := logger.NewDevelopmentLoggerFactory()
 	assert.NoError(t, err)
-	assert.NotNil(t, testLogger)
-	return testLogger
+	assert.NotNil(t, loggerFactory)
+	return loggerFactory
 }
+
 
 func TestNewDeviceRepository(t *testing.T) {
 	gormMockDB, sqkmockDB := stubs.GetTestDB(t)
 	assert.NotNil(t, gormMockDB)
 	assert.NotNil(t, sqkmockDB)
-	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB)
+	testLoggerFactory := createTestLoggerFactory(t)
+	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB, testLoggerFactory.Infrastructure())
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB, createTestLogger(t))
+	deviceRepository := NewDeviceRepository(postgresDB, testLoggerFactory)
 	assert.NotNil(t, deviceRepository)
 }
 
@@ -60,11 +60,12 @@ func TestSave(t *testing.T) {
 	gormMockDB, sqkmockDB := stubs.GetTestDB(t)
 	assert.NotNil(t, gormMockDB)
 	assert.NotNil(t, sqkmockDB)
-	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB)
+	testLoggerFactory := createTestLoggerFactory(t)
+	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB, testLoggerFactory.Infrastructure())
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB, createTestLogger(t))
+	deviceRepository := NewDeviceRepository(postgresDB, testLoggerFactory)
 	assert.NotNil(t, deviceRepository)
 
 	deviceEntity, err := entities.NewDevice("AA:BB:CC:DD:EE:FF", "test_device", "127.0.0.1", "In the very test code")
@@ -120,11 +121,12 @@ func TestUpdate(t *testing.T) {
 	gormMockDB, sqkmockDB := stubs.GetTestDB(t)
 	assert.NotNil(t, gormMockDB)
 	assert.NotNil(t, sqkmockDB)
-	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB)
+	testLoggerFactory := createTestLoggerFactory(t)
+	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB, testLoggerFactory.Infrastructure())
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB, createTestLogger(t))
+	deviceRepository := NewDeviceRepository(postgresDB, testLoggerFactory)
 	assert.NotNil(t, deviceRepository)
 
 	deviceEntity, err := entities.NewDevice("AA:BB:CC:DD:EE:FF", "updated_device", "127.0.0.2", "Updated location")
@@ -174,11 +176,12 @@ func TestFindByMACAddress(t *testing.T) {
 	gormMockDB, sqkmockDB := stubs.GetTestDB(t)
 	assert.NotNil(t, gormMockDB)
 	assert.NotNil(t, sqkmockDB)
-	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB)
+	testLoggerFactory := createTestLoggerFactory(t)
+	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB, testLoggerFactory.Infrastructure())
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB, createTestLogger(t))
+	deviceRepository := NewDeviceRepository(postgresDB, testLoggerFactory)
 	assert.NotNil(t, deviceRepository)
 
 	macAddress := "AA:BB:CC:DD:EE:FF"
@@ -236,11 +239,12 @@ func TestExists(t *testing.T) {
 	gormMockDB, sqkmockDB := stubs.GetTestDB(t)
 	assert.NotNil(t, gormMockDB)
 	assert.NotNil(t, sqkmockDB)
-	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB)
+	testLoggerFactory := createTestLoggerFactory(t)
+	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB, testLoggerFactory.Infrastructure())
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB, createTestLogger(t))
+	deviceRepository := NewDeviceRepository(postgresDB, testLoggerFactory)
 	assert.NotNil(t, deviceRepository)
 
 	macAddress := "AA:BB:CC:DD:EE:FF"
@@ -289,11 +293,12 @@ func TestList(t *testing.T) {
 	gormMockDB, sqkmockDB := stubs.GetTestDB(t)
 	assert.NotNil(t, gormMockDB)
 	assert.NotNil(t, sqkmockDB)
-	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB)
+	testLoggerFactory := createTestLoggerFactory(t)
+	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB, testLoggerFactory.Infrastructure())
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB, createTestLogger(t))
+	deviceRepository := NewDeviceRepository(postgresDB, testLoggerFactory)
 	assert.NotNil(t, deviceRepository)
 
 	t.Run("should return error when offset is negative", func(t *testing.T) {
@@ -378,11 +383,12 @@ func TestDelete(t *testing.T) {
 	gormMockDB, sqkmockDB := stubs.GetTestDB(t)
 	assert.NotNil(t, gormMockDB)
 	assert.NotNil(t, sqkmockDB)
-	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB)
+	testLoggerFactory := createTestLoggerFactory(t)
+	postgresDB, err := database.NewGormPostgresDBWithoutConfig(gormMockDB, testLoggerFactory.Infrastructure())
 	assert.NoError(t, err)
 	assert.NotNil(t, postgresDB)
 
-	deviceRepository := NewDeviceRepository(postgresDB, createTestLogger(t))
+	deviceRepository := NewDeviceRepository(postgresDB, testLoggerFactory)
 	assert.NotNil(t, deviceRepository)
 
 	macAddress := "AA:BB:CC:DD:EE:FF"
