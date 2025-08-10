@@ -84,7 +84,7 @@ services:
       MQTT_PASSWORD: ""
       MQTT_PORT: 1883
       # NATS Configuration
-      NATS_URL: nats://nats:4222
+      NATS_URLS: nats://nats:4222
       NATS_CLIENT_ID: iot-go-soc-consumer
       NATS_SUBJECT_PREFIX: liwaisi.iot.smart-irrigation
       # Application Configuration
