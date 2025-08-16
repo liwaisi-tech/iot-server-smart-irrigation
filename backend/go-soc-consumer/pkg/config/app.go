@@ -39,15 +39,15 @@ type MQTTConfig struct {
 
 // NATSConfig holds NATS configuration
 type NATSConfig struct {
-	URLs            []string      `json:"urls"`
-	MaxReconnect    int           `json:"max_reconnect"`
-	ReconnectWait   time.Duration `json:"reconnect_wait"`
-	Timeout         time.Duration `json:"timeout"`
-	DrainTimeout    time.Duration `json:"drain_timeout"`
-	FlusherTimeout  time.Duration `json:"flusher_timeout"`
-	PingInterval    time.Duration `json:"ping_interval"`
-	MaxPingsOut     int           `json:"max_pings_out"`
-	ReconnectBufSize int          `json:"reconnect_buf_size"`
+	URLs             []string      `json:"urls"`
+	MaxReconnect     int           `json:"max_reconnect"`
+	ReconnectWait    time.Duration `json:"reconnect_wait"`
+	Timeout          time.Duration `json:"timeout"`
+	DrainTimeout     time.Duration `json:"drain_timeout"`
+	FlusherTimeout   time.Duration `json:"flusher_timeout"`
+	PingInterval     time.Duration `json:"ping_interval"`
+	MaxPingsOut      int           `json:"max_pings_out"`
+	ReconnectBufSize int           `json:"reconnect_buf_size"`
 }
 
 // HealthCheckConfig holds health check configuration
@@ -87,14 +87,14 @@ func NewAppConfig() (*AppConfig, error) {
 			MaxReconnectInterval: getEnvDuration("MQTT_MAX_RECONNECT_INTERVAL", 10*time.Minute),
 		},
 		NATS: NATSConfig{
-			URLs:            getEnvStringSlice("NATS_URLS", []string{"nats://localhost:4222"}),
-			MaxReconnect:    getEnvInt("NATS_MAX_RECONNECT", -1),
-			ReconnectWait:   getEnvDuration("NATS_RECONNECT_WAIT", 2*time.Second),
-			Timeout:         getEnvDuration("NATS_TIMEOUT", 5*time.Second),
-			DrainTimeout:    getEnvDuration("NATS_DRAIN_TIMEOUT", 10*time.Second),
-			FlusherTimeout:  getEnvDuration("NATS_FLUSHER_TIMEOUT", 5*time.Second),
-			PingInterval:    getEnvDuration("NATS_PING_INTERVAL", 2*time.Minute),
-			MaxPingsOut:     getEnvInt("NATS_MAX_PINGS_OUT", 2),
+			URLs:             getEnvStringSlice("NA2TS_URLS", []string{"nats://localhost:4222"}),
+			MaxReconnect:     getEnvInt("NATS_MAX_RECONNECT", -1),
+			ReconnectWait:    getEnvDuration("NATS_RECONNECT_WAIT", 2*time.Second),
+			Timeout:          getEnvDuration("NATS_TIMEOUT", 5*time.Second),
+			DrainTimeout:     getEnvDuration("NATS_DRAIN_TIMEOUT", 10*time.Second),
+			FlusherTimeout:   getEnvDuration("NATS_FLUSHER_TIMEOUT", 5*time.Second),
+			PingInterval:     getEnvDuration("NATS_PING_INTERVAL", 2*time.Minute),
+			MaxPingsOut:      getEnvInt("NATS_MAX_PINGS_OUT", 2),
 			ReconnectBufSize: getEnvInt("NATS_RECONNECT_BUF_SIZE", 8*1024*1024),
 		},
 		HealthCheck: HealthCheckConfig{
