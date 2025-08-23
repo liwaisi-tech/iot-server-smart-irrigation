@@ -1,23 +1,16 @@
-"""Dependency injection container for the application."""
+from dependency_injector import containers, providers
+from dependency_injector.wiring import Provide, inject
 
-from src.domain.ports.ping_service import PingServicePort
-from src.usecases.ping.ping_service import PingService
+from src.config.settings import Settings
 
 
-class Container:
-    """Simple dependency injection container."""
+class Container(containers.DeclarativeContainer):
+    """Dependency injection container for the IoT Smart Irrigation System."""
     
-    def __init__(self):
-        """Initialize the container with service instances."""
-        self._ping_service = None
+    wiring_config = containers.WiringConfiguration(modules=["src.app.factory"])
     
-    @property
-    def ping_service(self) -> PingServicePort:
-        """Get ping service instance.
-        
-        Returns:
-            PingServicePort: The ping service implementation.
-        """
-        if self._ping_service is None:
-            self._ping_service = PingService()
-        return self._ping_service
+    # Configuration
+    config = providers.Configuration()
+    
+    # Settings
+    settings = providers.Singleton(Settings)

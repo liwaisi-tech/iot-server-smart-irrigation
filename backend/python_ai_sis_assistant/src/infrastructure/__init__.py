@@ -1,1 +1,0 @@
-"""Infrastructure layer for the Python AI SIS Assistant."""

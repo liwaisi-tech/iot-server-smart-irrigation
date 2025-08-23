@@ -1,1 +1,0 @@
-"""Configuration package for the Python AI SIS Assistant."""
