@@ -5,6 +5,7 @@ from src.app.container import Container
 from src.app.lifespan import lifespan
 from src.config.settings import Settings
 from src.presentation.http.handlers import ping_handler
+from src.presentation.http.routes import chat_routes, agent_routes
 
 
 @inject
@@ -16,8 +17,8 @@ def create_app(
     container.config.from_dict({})
     
     app = FastAPI(
-        title="IoT Smart Irrigation System",
-        description="Python-based IoT Smart Irrigation System with hexagonal architecture",
+        title="IoT Smart Irrigation AI Assistant",
+        description="Python-based AI Assistant for IoT Smart Irrigation System with hexagonal architecture",
         version="1.0.0",
         lifespan=lifespan,
     )
@@ -30,6 +31,8 @@ def create_app(
     
     # Include routers
     app.include_router(ping_handler.router, tags=["ping"])
+    app.include_router(chat_routes.router, prefix="/api/v1")
+    app.include_router(agent_routes.router, prefix="/api/v1")
     
     return app
 
